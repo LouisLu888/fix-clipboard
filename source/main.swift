@@ -28,10 +28,36 @@ func repair(execute: (String, [String]) -> CommandResult = runCommand) -> String
     let preference = NSHomeDirectory() + "/Library/Preferences/com.apple.coreservices.useractivityd.plist"
     let write = execute("/usr/bin/defaults", ["write", preference, "ClipboardSharingEnabled", "-bool", "true"])
     guard write.status == 0 else { return "无法启用剪贴板共享：\(write.output)" }
+    let listing = execute("/usr/bin/pgrep", ["-u", String(getuid()), "-x", "useractivityd"])
+    guard listing.status == 0 || listing.status == 1 else { return "无法检查共享服务进程：\(listing.output)" }
+    let pids = listing.output.split(whereSeparator: { $0.isWhitespace }).compactMap { Int32($0) }.filter { $0 > 1 }
+    // Snapshot identity to avoid signaling a reused PID. No clipboard data is read.
+    var originals: [(String, String)] = []
+    for pid in pids {
+        let identity = execute("/bin/ps", ["-p", String(pid), "-o", "uid=,lstart=,comm="])
+        if identity.status == 0 { originals.append((String(pid), identity.output)) }
+    }
     let restart = execute("/usr/bin/killall", ["-u", NSUserName(), "useractivityd"])
     // Exit 1 means no matching process; it is already stopped and can be started on demand.
     guard restart.status == 0 || (restart.status == 1 && restart.output.contains("No matching processes")) else {
         return "无法重启共享服务：\(restart.output)"
+    }
+    for (pid, identity) in originals {
+        let current = execute("/bin/ps", ["-p", pid, "-o", "uid=,lstart=,comm="])
+        if current.status == 0 && current.output == identity {
+            // SIGTERM remains pending on a SIGSTOP-paused process until it resumes.
+            _ = execute("/bin/kill", ["-CONT", pid])
+        }
+    }
+    let deadline = ProcessInfo.processInfo.systemUptime + 2
+    while !originals.isEmpty {
+        originals = originals.filter { pid, identity in
+            let current = execute("/bin/ps", ["-p", pid, "-o", "uid=,lstart=,comm="])
+            return current.status == 0 && current.output == identity
+        }
+        if originals.isEmpty { break }
+        if ProcessInfo.processInfo.systemUptime >= deadline { return "共享服务仍未退出，请稍后重试。" }
+        Thread.sleep(forTimeInterval: 0.1)
     }
     return nil
 }
@@ -224,7 +250,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 if CommandLine.arguments.contains("--self-test") {
     var calls: [(String, [String])] = []
     assert(repair { path, args in calls.append((path, args)); return CommandResult(status: 0, output: "") } == nil)
-    assert(calls.count == 2 && calls[1].1 == ["-u", NSUserName(), "useractivityd"])
+    assert(calls.count == 3 && calls[2].1 == ["-u", NSUserName(), "useractivityd"])
     calls = []
     assert(repair { path, args in calls.append((path, args)); return CommandResult(status: 2, output: "denied") } != nil)
     assert(calls.count == 1)
@@ -245,7 +271,23 @@ if CommandLine.arguments.contains("--self-test") {
     assert(gate.delay(at: 25) == 2) // latest debounce also respected
     gate.cancel()
     assert(gate.delay(at: 100) == nil)
-    print("PASS: network debounce, cooldown, deferred changes, cancellation; repair commands, failure handling, user-scoped restart, scheduling guards. No system settings changed.")
+    var probes = 0
+    var resumed = false
+    let stoppedResult = repair { path, args in
+        if path.hasSuffix("pgrep") { return CommandResult(status: 0, output: "12345\n") }
+        if path.hasSuffix("ps") {
+            probes += 1
+            return CommandResult(status: resumed ? 1 : 0, output: resumed ? "" : "501 start useractivityd")
+        }
+        if path == "/bin/kill" { assert(args == ["-CONT", "12345"]); resumed = true }
+        return CommandResult(status: 0, output: "")
+    }
+    assert(stoppedResult == nil && resumed && probes >= 3)
+    print("PASS: paused-process recovery; network debounce, cooldown, deferred changes, cancellation; repair commands, failure handling, user-scoped restart, scheduling guards. No system settings changed.")
+} else if CommandLine.arguments.contains("--repair-test") {
+    // Explicitly opted-in integration entry point: exactly the same repair as the menu.
+    if let error = repair() { fputs(error + "\n", stderr); exit(1) }
+    print("Repair commands completed; service recovery must be independently verified.")
 } else if CommandLine.arguments.contains("--network-test") {
     let probe = NWPathMonitor()
     let received = DispatchSemaphore(value: 0)

@@ -16,8 +16,8 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 <key>CFBundleIdentifier</key><string>local.louis.fixclipboard</string>
 <key>CFBundleName</key><string>Fix Clipboard</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>1.2.1</string>
-<key>CFBundleVersion</key><string>4</string>
+<key>CFBundleShortVersionString</key><string>1.2.2</string>
+<key>CFBundleVersion</key><string>5</string>
 <key>LSMinimumSystemVersion</key><string>13.0</string>
 <key>LSUIElement</key><true/>
 <key>NSHighResolutionCapable</key><true/>
@@ -28,5 +28,5 @@ codesign --force --sign - "$APP"
 
 codesign --verify --strict "$APP"
 cp "$ROOT/INSTALL.md" "$ROOT/dist/INSTALL.md"
-COPYFILE_DISABLE=1 /usr/bin/ditto -c -k --norsrc --noextattr --noacl --keepParent "$APP" "$ROOT/dist/Fix-Clipboard-1.2.1-universal.zip"
-(cd "$ROOT/dist" && shasum -a 256 Fix-Clipboard-1.2.1-universal.zip > SHA256SUMS.txt)
+COPYFILE_DISABLE=1 /usr/bin/ditto -c -k --norsrc --noextattr --noacl --keepParent "$APP" "$ROOT/dist/Fix-Clipboard-1.2.2-universal.zip"
+(cd "$ROOT/dist" && shasum -a 256 Fix-Clipboard-1.2.2-universal.zip > SHA256SUMS.txt)

@@ -1,0 +1,13 @@
+name: macOS tests
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build universal app and run Swift regression checks
+        run: bash source/build.sh
+      - name: Safe integration suite (no daemon signals)
+        run: python3 tests/test_suite.py

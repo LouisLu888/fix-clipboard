@@ -4,7 +4,7 @@
 
 **[项目主页](https://louislu888.github.io/fix-clipboard/)** · **[下载最新版](https://github.com/LouisLu888/fix-clipboard/releases/latest)** · [安装说明](INSTALL.md)
 
-## 当前版本：v1.2.1
+## 当前版本：v1.2.2
 
 - **立即修复**：启用 Mac 剪贴板共享，重启当前用户的 `useractivityd`。
 - **网络变化／睡眠唤醒后自动修复**：在菜单中按需开启，默认关闭。
@@ -44,12 +44,14 @@ Universal binary：Apple Silicon + Intel，最低部署目标 macOS 13。实机�
 
 ## 它做什么
 
-执行以下两步（代码使用 Process 参数数组，不通过 shell 拼接）：
+执行以下主要操作（代码使用 Process 参数数组，不通过 shell 拼接）：
 
 ```sh
 defaults write ~/Library/Preferences/com.apple.coreservices.useractivityd.plist ClipboardSharingEnabled -bool true
 killall -u "$(id -un)" useractivityd
 ```
+
+随后检查原进程是否退出；若原进程仍存在，向同一进程发送 SIGCONT，使暂停状态下的终止信号得到处理，并等待最多 2 秒。未退出会报告失败，不使用 SIGKILL。
 
 无需管理员权限。服务重启可能短暂影响 Handoff。不会读取、上传或保存剪贴板正文，不发送分析数据，不安装 LaunchAgent，不修改 VPN、路由或防火墙。网络监听仅观察路径变化。
 
@@ -79,3 +81,9 @@ bash source/build.sh
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+## 自动测试与故障注入
+
+`python3 tests/test_suite.py` 运行安全测试。`python3 tests/test_suite.py --fault-injection` 显式暂停本机 useractivityd 后调用真实修复函数，配有独立自动恢复保护，可能短暂影响 Handoff。详见 [测试说明与实测结果](tests/README.md)。
+
+2026-09-27 在 Apple Silicon / macOS 26.6.1 上，5 项测试全部通过。故障注入揭示并修复了旧版 SIGTERM 成功但暂停进程未退出的问题；这不等于跨设备传输验证。

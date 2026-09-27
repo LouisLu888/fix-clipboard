@@ -1,6 +1,6 @@
 # 安装 Fix Clipboard
 
-1. 从本仓库 Releases 下载 `Fix-Clipboard-1.2.1-universal.zip`，双击解压。
+1. 从本仓库 Releases 下载 `Fix-Clipboard-1.2.2-universal.zip`，双击解压。
 2. 把 `Fix Clipboard.app` 拖进「应用程序」，再打开。
 3. 如果 macOS 阻止打开：先尝试打开一次，再进入「系统设置 → 隐私与安全性」，找到该 app 的提示并选择「仍要打开」，按提示确认。此版本未经过 Apple 公证；仅在确认下载来源可信时放行。受组织管理的 Mac 可能不允许自行放行。
 4. 在屏幕顶部菜单栏找到剪贴板图标，选择「立即修复」。app 没有 Dock 主窗口。
