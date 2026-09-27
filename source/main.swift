@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 import Network
 import CoreWLAN
 import IOBluetooth
@@ -127,6 +128,8 @@ struct NetworkRepairGate {
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    private var diagnosticWindow: NSWindow?
+    private let diagnosticModel = DiagnosticsModel()
     private let preferences = UserDefaults.standard
     private var statusItem: NSStatusItem!
     private var busy = false
@@ -282,6 +285,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
     @objc func showDiagnostics() {
+        if diagnosticWindow == nil {
+            let view = DiagnosticsView(model: diagnosticModel, repair: { [weak self] in self?.performRepair(manual: true) })
+            let controller = NSHostingController(rootView: view)
+            let window = NSWindow(contentViewController: controller)
+            window.title = "Fix Clipboard"
+            window.styleMask = [.titled, .closable, .miniaturizable]
+            window.isReleasedWhenClosed = false
+            window.center()
+            diagnosticWindow = window
+            diagnosticModel.refresh = { [weak self] in self?.refreshDiagnostics() }
+        }
+        diagnosticWindow?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        refreshDiagnostics()
+    }
+    private func refreshDiagnostics() {
+        guard !diagnosticModel.loading else { return }
+        diagnosticModel.loading = true
+        diagnosticModel.authorization = CBManager.authorization
         // Run hardware queries in an isolated helper, with a bounded lifetime.
         guard let executable = Bundle.main.executableURL else { return }
         DispatchQueue.global(qos: .userInitiated).async {
@@ -308,13 +330,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             } catch { summary = "无法启动诊断：\(error.localizedDescription)" }
             let text = summary
             DispatchQueue.main.async {
-                let alert = NSAlert()
-                alert.messageText = "Continuity 诊断"
-                alert.informativeText = text
-                alert.addButton(withTitle: "关闭")
-                alert.addButton(withTitle: "立即修复")
-                NSApp.activate(ignoringOtherApps: true)
-                if alert.runModal() == .alertSecondButtonReturn { self.performRepair(manual: true) }
+                self.diagnosticModel.summary = text
+                self.diagnosticModel.authorization = CBManager.authorization
+                self.diagnosticModel.loading = false
             }
         }
     }

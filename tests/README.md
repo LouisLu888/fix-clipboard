@@ -29,3 +29,7 @@ Diagnostics regression cases are included in --self-test: missing/partial Handof
 ### v1.3.1 蓝牙权限回归
 
 真实 GUI 崩溃报告确认 v1.3.0 缺少 NSBluetoothAlwaysUsageDescription，IOBluetooth 初始化被 TCC 终止。新增安装包声明检查、诊断输出检查，以及未确定/拒绝/受限授权时绝不调用硬件读取的断言。默认共 6 项测试，在沙箱与真实 macOS 环境均通过。CLI 实测四项均返回；GUI 自动化连接超时，尚未完成新版本菜单点击验证。CLI 权限归属与 GUI 不同，不能替代此验收。未授权会显示蓝牙状态未知，不弹权限申请；需自行在系统设置确认蓝牙开关。
+
+### v1.4.0 原生面板与授权
+
+新增 SwiftUI 诊断窗口、状态颜色与文字双重标记、可重现生成的 AppIcon。授权按钮只在用户点击时创建 CBCentralManager；拒绝后引导系统设置，授权状态回调刷新诊断。构建覆盖 arm64/x86_64，默认回归测试仍为 6 项。真实 GUI 与系统授权弹窗验收尚未完成：自动审批阻止启动本地构建的 App，等待用户允许；不以 CLI 测试替代 GUI 验收。
