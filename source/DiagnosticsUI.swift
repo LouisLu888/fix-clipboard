@@ -32,7 +32,7 @@ final class DiagnosticsModel: NSObject, ObservableObject, CBCentralManagerDelega
 struct DiagnosticsView: View {
     @ObservedObject var model: DiagnosticsModel
     let repair: () -> Void
-    private let labels = ["Wi-Fi", "Bluetooth", "Handoff", "VPN"]
+    private let labels = ["Wi-Fi", "Bluetooth", "Handoff"]
     private let symbols = ["wifi", "antenna.radiowaves.left.and.right", "laptopcomputer.and.iphone", "network"]
     private func status(_ name: String) -> String {
         guard let line = model.summary.components(separatedBy: "\n").first(where: { $0.hasPrefix(name + " ") }) else { return "等待检查" }
@@ -50,6 +50,9 @@ struct DiagnosticsView: View {
         return ("questionmark.circle.fill", .secondary)
     }
     var body: some View {
+        ScrollView { content }.frame(width: 540, height: 690)
+    }
+    private var content: some View {
         VStack(alignment: .leading, spacing: 22) {
             HStack(spacing: 16) {
                 Image(nsImage: NSApp.applicationIconImage).resizable().frame(width: 76, height: 76)
@@ -72,7 +75,7 @@ struct DiagnosticsView: View {
                             Text(status(label)).font(.system(size: 12)).foregroundStyle(.primary)
                         }
                     }.padding(.horizontal, 18).padding(.vertical, 17)
-                    if index < 3 { Divider().padding(.leading, 55) }
+                    if index < labels.count - 1 { Divider().padding(.leading, 55) }
                 }
             }
             .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 16))
@@ -84,10 +87,21 @@ struct DiagnosticsView: View {
                     Button(model.authorization == .notDetermined ? "授权蓝牙" : "打开权限设置") { model.authorize() }
                 }
             }
-            VStack(alignment: .leading, spacing: 8) {
-                Label("连接小提示", systemImage: "lightbulb").font(.system(size: 13, weight: .semibold))
-                Text(model.summary.contains("Wi-Fi") || model.summary.isEmpty ? "如果问题出现在 VPN 或网络切换后，可以尝试修复。若 VPN 阻止本地通信，还需调整它的设置。" : model.summary)
-                    .font(.system(size: 12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: 10) {
+                Label("可能影响连接 · VPN", systemImage: "exclamationmark.triangle.fill")
+                    .font(.system(size: 14, weight: .semibold)).foregroundStyle(.orange)
+                if model.loading { ProgressView().controlSize(.small) }
+                else { Text(status("VPN")).fontWeight(.medium) }
+                Text("VPN 不是接力功能的必要条件。若它阻止本地网络通信，可能影响通用剪贴板；已连接不代表一定有故障。")
+                Text("在 Mac 和 iPhone / iPad 的 VPN App 中，查找并开启“允许局域网访问 / Allow LAN”或“允许本地网络 / Local Network Sharing”等选项。名称因 App 而异；若没有此选项，请查看其帮助或联系管理员。")
+                Text("调整后重新复制并测试。重置共享服务不能解除 VPN 的网络限制。本机检查也可能漏掉第三方隧道、代理及其他设备上的 VPN。")
+                    .foregroundStyle(.secondary)
+                Link("Apple 官方说明：通用剪贴板与 VPN", destination: URL(string: "https://support.apple.com/zh-cn/guide/iphone/iph220ea8dca/ios")!)
+            }.font(.system(size: 12)).fixedSize(horizontal: false, vertical: true)
+                .padding(16).frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 14))
+            if !model.summary.isEmpty && !model.summary.contains("Wi-Fi") {
+                Text(model.summary).font(.system(size: 12)).foregroundStyle(.orange)
             }
             Text("绿勾仅表示本机开关或偏好已开启，不能确认跨设备连通。VPN 检查可能遗漏第三方代理；Handoff 偏好仅供参考。")
                 .font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)

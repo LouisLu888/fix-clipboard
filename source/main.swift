@@ -175,6 +175,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             preferences.set(true, forKey: "introducedHome")
             showHome()
         }
+        if !preferences.bool(forKey: "loginConsentShown") {
+            DispatchQueue.main.async { [weak self] in self?.offerLoginAtLaunch() }
+        }
+    }
+
+    func offerLoginAtLaunch() {
+        preferences.set(true, forKey: "loginConsentShown")
+        guard SMAppService.mainApp.status == .notRegistered else { return }
+        let alert = NSAlert()
+        alert.messageText = "登录 Mac 后，让 Fix Clipboard 保持就绪"
+        alert.informativeText = "登录时启动永久免费。你可以随时在主面板关闭；这不会自动开启 Pro 自动修复。"
+        let checkbox = NSButton(checkboxWithTitle: "登录时启动 Fix Clipboard", target: nil, action: nil)
+        checkbox.state = .on
+        alert.accessoryView = checkbox
+        alert.addButton(withTitle: "确认")
+        alert.addButton(withTitle: "暂不开启")
+        NSApp.activate(ignoringOtherApps: true)
+        if alert.runModal() == .alertFirstButtonReturn && checkbox.state == .on { toggleLogin() }
     }
 
     func item(_ title: String, action: Selector? = nil) -> NSMenuItem {
@@ -210,7 +228,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             menu.addItem(item(networkGate.pendingAt == nil ? "监听网络变化和唤醒 · 稳定 3 秒 / 冷却 10 秒" : "已检测变化 · 等待网络稳定及冷却结束"))
         }
 
-        let login = item("登录时启动 · Pro", action: #selector(toggleLogin))
+        let login = item("登录时启动", action: #selector(toggleLogin))
         login.state = SMAppService.mainApp.status == .enabled ? .on : .off
         menu.addItem(login)
         if SMAppService.mainApp.status == .requiresApproval { menu.addItem(item("登录项等待系统批准")) }
@@ -351,12 +369,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
     }
     @objc func toggleLogin() {
-        // Removing an existing login item remains available without Pro.
+        // Login at launch is free and requires explicit consent.
         do {
             if SMAppService.mainApp.status == .enabled || SMAppService.mainApp.status == .requiresApproval {
                 try SMAppService.mainApp.unregister()
             } else {
-                guard license.permitsAutomaticRepair else { showPro(); return }
                 try SMAppService.mainApp.register()
             }
             rebuildMenu()

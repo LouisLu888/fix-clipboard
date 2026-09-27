@@ -88,9 +88,9 @@ struct HomeView: View {
                         if !license.isPro { Label("Pro", systemImage: "lock.fill").font(.caption).foregroundStyle(.secondary) }
                     }
                     setting("网络变化与 Mac 唤醒", detail: "包含可检测到的 VPN / Wi-Fi 变化及开盖唤醒", enabled: model.autoEnabled, action: toggleAuto)
-                    Divider()
-                    setting("登录时启动", detail: model.loginNeedsApproval ? "需要在系统设置中允许登录项" : "登录 Mac 后，在菜单栏保持就绪", enabled: model.loginEnabled, action: toggleLogin)
                 }
+                Divider()
+                setting("登录时启动 · 免费", detail: model.loginNeedsApproval ? "需要在系统设置中允许登录项" : "登录 Mac 后，在菜单栏保持就绪", enabled: model.loginEnabled, requiresPro: false, action: toggleLogin)
                 HStack {
                     Button(license.isPro ? "管理 Pro 授权" : (model.offerPro ? "下次自动处理 · 了解 Pro" : "了解 Pro / 激活 License"), action: showPro)
                     Spacer()
@@ -108,14 +108,14 @@ struct HomeView: View {
                     .font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }.padding(28).frame(width: 560).background(Color(nsColor: .windowBackgroundColor))
     }
-    private func setting(_ title: String, detail: String, enabled: Bool, action: @escaping () -> Void) -> some View {
+    private func setting(_ title: String, detail: String, enabled: Bool, requiresPro: Bool = true, action: @escaping () -> Void) -> some View {
         HStack(spacing: 14) {
             VStack(alignment: .leading, spacing: 4) {
                 Text(title).font(.system(size: 13, weight: .medium))
                 Text(detail).font(.system(size: 11)).foregroundStyle(.secondary)
             }
             Spacer()
-            if license.isPro || enabled {
+            if !requiresPro || license.isPro || enabled {
                 Toggle(title, isOn: Binding(get: { enabled }, set: { _ in action() })).labelsHidden().toggleStyle(.switch).controlSize(.small)
             } else {
                 Button(action: action) { Image(systemName: "lock.fill").frame(width: 28) }.help("了解 Pro 自动修复")

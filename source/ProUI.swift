@@ -20,7 +20,6 @@ struct ProView: View {
             VStack(alignment: .leading, spacing: 16) {
                 feature("network", "网络变化后自动修复", "包括系统能检测到的 Wi-Fi 与 VPN 路径变化")
                 feature("sun.max", "Mac 唤醒后自动修复", "也包括合盖睡眠后的开盖唤醒")
-                feature("power", "登录时启动", "登录 Mac 后，让工具在菜单栏就绪")
             }.padding(20).frame(maxWidth: .infinity, alignment: .leading)
                 .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 16))
             if !license.isPro {
