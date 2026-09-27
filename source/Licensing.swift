@@ -26,7 +26,7 @@ struct CommerceConfig: Codable, Equatable {
 }
 
 struct LicenseResponse: Decodable {
-    struct Key: Decodable { let status: String }
+    struct Key: Decodable { let status: String; let activation_limit: Int?; let activation_usage: Int? }
     struct Instance: Decodable { let id: String }
     struct Meta: Decodable { let store_id: Int; let product_id: Int; let variant_id: Int }
     let activated: Bool?
@@ -102,8 +102,9 @@ protocol LicenseVault {
     func write(_ data: Data?, account: String) throws
 }
 struct KeychainVault: LicenseVault {
+    var service = "local.louis.fixclipboard.license"
     private func query(_ account: String) -> [String: Any] {
-        [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: "local.louis.fixclipboard.license", kSecAttrAccount as String: account]
+        [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: account]
     }
     func read(_ account: String) throws -> Data? {
         var q = query(account); q[kSecReturnData as String] = true; q[kSecMatchLimit as String] = kSecMatchLimitOne

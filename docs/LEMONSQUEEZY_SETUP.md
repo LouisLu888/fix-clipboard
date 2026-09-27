@@ -1,6 +1,6 @@
 # Lemon Squeezy 接入清单
 
-代码已支持浏览器付款、手动 License 激活、按实例验证、停用释放名额。当前 `config/Commerce.json` 已接入 panda 测试商品：Store 484666、Product 1392205、Variant 2174236。2026-09-27 实际支付页面显示 Test mode、$9.99；没有提交订单。App 设置 `testMode: true` 并标明测试支付。商户注册、审核、收款信息和真实付款由店主处理。
+代码已支持浏览器付款、手动 License 激活、按实例验证、停用释放名额。当前 `config/Commerce.json` 已接入 panda 测试商品：Store 484666、Product 1392205、Variant 2174236。2026-09-27 实际支付页面显示 Test mode、$9.99；随后已完成一笔测试订单，确认 License 自动生成与真实 API 激活成功。App 设置 `testMode: true` 并标明测试支付。商户注册、审核、收款信息和真实付款由店主处理。
 
 ## 注册之后给开发者的四项公开配置
 
@@ -58,7 +58,7 @@ python3 tests/test_suite.py
 - 登录启动需要在实际安装到 Applications 的 App 上测试，并检查 macOS 登录项授权。
 - 最后切换正式商品配置，核对 checkout/价格/Store/Product/Variant 一致。确认公开付款页已无 Test mode 后，再把 testMode 改为 false 并发布正式版；仅改客户端标记不会切换商店模式。
 
-目前完成的是 mock API + 内存存储测试，尚未完成真实测试订单、钥匙串跨版本访问、系统登录项和界面交互验收。
+已完成测试订单、License 生成、真实 API 激活/验证/停用与独立测试钥匙串保存重载。尚未完成三台设备限制、钥匙串跨版本访问、系统登录项和 GUI 点击验收。
 
 ## 授权实现与限制
 
