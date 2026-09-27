@@ -246,8 +246,13 @@ final class LicenseStore: ObservableObject {
         do {
             let result = try await api.request("deactivate", fields: ["license_key": record.key, "instance_id": record.instanceID])
             guard result.deactivated == true else { throw LicenseFailure.rejected }
-            saved = nil; updateAccess()
+            var inactive = record
+            inactive.revoked = true
+            saved = inactive; updateAccess()
+            // Persist revocation before deletion so a failed delete does not restore Pro on relaunch.
+            try persist(inactive)
             try vault.write(nil, account: "license")
+            saved = nil; updateAccess()
             message = "此 Mac 已停用，激活名额已释放。"
         } catch { message = error.localizedDescription }
     }

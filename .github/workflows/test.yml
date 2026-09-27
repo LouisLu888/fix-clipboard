@@ -11,3 +11,14 @@ jobs:
         run: bash source/build.sh
       - name: Safe integration suite (no daemon signals)
         run: python3 tests/test_suite.py
+      - name: Package and verify candidate DMG
+        run: bash scripts/package_dmg.sh
+      - name: Preserve candidate artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macOS-candidate
+          path: |
+            dist/*.dmg
+            dist/*.zip
+            dist/SHA256SUMS.txt
+          retention-days: 7

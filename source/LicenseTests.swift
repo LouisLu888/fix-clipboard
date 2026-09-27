@@ -3,9 +3,10 @@ import Foundation
 private final class MemoryVault: LicenseVault {
     var values: [String: Data] = [:]
     var failLicenseWrite = false
+    var failDeletion = false
     func read(_ account: String) throws -> Data? { values[account] }
     func write(_ data: Data?, account: String) throws {
-        if failLicenseWrite && account == "license" { throw LicenseFailure.storage }
+        if (failLicenseWrite || (failDeletion && data == nil)) && account == "license" { throw LicenseFailure.storage }
         values[account] = data
     }
 }
@@ -119,5 +120,16 @@ private final class MockLicenseAPI: LicenseAPI {
     check(store.hasLicense && !store.isPro, "Retain invalid record before explicit removal")
     store.forgetInvalidLicense()
     check(!store.hasLicense, "Invalid local record can be removed")
+    api.results = [.success(valid), .success(activated)]
+    await store.activate("test-key")
+    vault.failDeletion = true
+    api.results = [.success(response("\"deactivated\":true", status: "inactive"))]
+    await store.deactivate()
+    check(!store.isPro && store.hasLicense, "Deactivation delete failure keeps revoked record for cleanup")
+    reloaded.load()
+    check(!reloaded.isPro, "Failed deletion cannot restore paid access on reload")
+    vault.failDeletion = false
+    store.forgetInvalidLicense()
+    check(!store.hasLicense && vault.values["license"] == nil, "Explicit cleanup after failed deletion")
     print("PASS: \(count) license regression assertions; fake API and memory vault only. No payment, Keychain access or activation performed.")
 }

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Safe tests by default; --fault-injection pauses the current user's useractivityd."""
+import importlib.util
 import json
 import plistlib
 import argparse, os, pathlib, signal, subprocess, sys, time, unittest
@@ -25,6 +26,19 @@ class SafeTests(unittest.TestCase):
         self.assertIsInstance(config['testMode'], bool)
         self.assertEqual(config, json.loads((ROOT / 'config/Commerce.json').read_text()))
         self.assertGreater((resources / 'AppIcon.icns').stat().st_size, 0)
+    def test_bounded_subprocess(self):
+        self.assertIn('PASS: bounded subprocess', run(str(APP), '--process-self-test').stdout)
+    def test_release_configuration_guards(self):
+        spec = importlib.util.spec_from_file_location('release_check', ROOT / 'scripts/release_check.py')
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        config = json.loads((ROOT / 'config/Commerce.json').read_text())
+        self.assertEqual(module.problems(config), [])
+        sample = dict(config, testMode=True)
+        self.assertTrue(module.problems(sample, production=True))
+        self.assertEqual(module.problems(dict(sample, testMode=False), production=True), [])
+        self.assertTrue(module.problems(dict(sample, checkoutURL='http://attacker.example/checkout/buy/x')))
+        self.assertTrue(module.problems(dict(sample, storeID=True)))
     def test_license_flows(self):
         self.assertIn("license regression assertions", run(str(APP), "--license-self-test").stdout)
     def test_repair_and_schedule(self):

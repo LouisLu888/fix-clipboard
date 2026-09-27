@@ -3,6 +3,7 @@ import AppKit
 
 struct ProView: View {
     @ObservedObject var license: LicenseStore
+    @Environment(\.colorScheme) private var scheme
     @State private var key = ""
     @State private var confirmingDeactivation = false
     @State private var confirmingForget = false
@@ -64,7 +65,7 @@ struct ProView: View {
             }
             HStack(alignment: .top, spacing: 8) {
                 if license.busy { ProgressView().controlSize(.small) }
-                Text(license.message).font(.system(size: 12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                Text(license.message).textSelection(.enabled).font(.system(size: 12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
             Text("激活与验证会向 Lemon Squeezy 发送 License 和随机安装标识／激活实例，不发送剪贴板内容。授权保存在钥匙串；离线宽限为最近验证后的 7 天。自动修复不保证跨设备连接恢复。")
                 .font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
@@ -80,12 +81,15 @@ struct ProView: View {
     }
     private func activate() {
         guard !license.busy, license.config.configured else { return }
-        let input = key; key = ""
-        Task { await license.activate(input) }
+        let input = key
+        Task {
+            await license.activate(input)
+            if license.isPro { key = "" }
+        }
     }
     private func feature(_ symbol: String, _ title: String, _ detail: String) -> some View {
         HStack(spacing: 14) {
-            Image(systemName: symbol).font(.system(size: 20)).foregroundStyle(Color(red: 0.08, green: 0.46, blue: 0.35)).frame(width: 28)
+            Image(systemName: symbol).font(.system(size: 20)).foregroundStyle(scheme == .dark ? Color(red: 0.50, green: 0.84, blue: 0.69) : Color(red: 0.08, green: 0.46, blue: 0.35)).frame(width: 28)
             VStack(alignment: .leading, spacing: 4) {
                 Text(title).font(.system(size: 14, weight: .semibold))
                 Text(detail).font(.system(size: 12)).foregroundStyle(.secondary)

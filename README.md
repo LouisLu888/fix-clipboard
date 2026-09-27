@@ -4,9 +4,9 @@
 
 **[项目主页](https://louislu888.github.io/fix-clipboard/)** · **[下载最新版](https://github.com/LouisLu888/fix-clipboard/releases/latest)** · [安装说明](INSTALL.md)
 
-## 开发版：v1.5.0-beta.2 · Free / Pro
+## 候选版：v1.5.0-rc.1 · Free / Pro
 
-正式版仍为 v1.4.0；此分支是商业化测试版。已接入 panda 的 Lemon Squeezy 测试商店，测试支付页显示 $9.99。App 明确标注测试模式；已完成测试订单、License 生成和真实 API 激活/验证/停用；GUI、三台设备上限及正式商店仍待验收，不能作为正式收款版本。
+正式版仍为 v1.4.0；此分支是发布候选版。已接入 panda 的 Lemon Squeezy 测试商店，测试支付页显示 $9.99。App 明确标注测试模式；已完成测试订单、License 生成和真实 API 激活/验证/停用；GUI、三台设备上限及正式商店仍待验收，不能作为正式收款版本。
 
 | 功能 | Free | Pro |
 | --- | --- | --- |
@@ -17,6 +17,14 @@
 Pro 不需要注册账号：浏览器购买 → 邮件获取 License → App 激活。计划一次购买、最多 3 台 Mac、V1.x 更新；价格和名额需与商店配置一致。此前版本没有权益迁移逻辑。
 
 [商店接入与验收清单](docs/LEMONSQUEEZY_SETUP.md)；配置在 `config/Commerce.json`，不需要商户 API Key。
+
+## 这版完善了什么
+
+- 统一主面板：修复进度/结果、自动修复、登录启动、版本、帮助与隐私入口。
+- 系统命令有超时保护；无法检查服务状态时不误报成功。
+- 授权停用先保存撤销状态，再删除记录；删除失败可恢复处理。
+- DMG 拖放安装与 ZIP；包内含安装及隐私说明。
+- 正式构建拒绝测试支付配置。详见 [发布说明](docs/RELEASE.md)。
 
 ## 功能
 
@@ -44,7 +52,7 @@ Pro 不需要注册账号：浏览器购买 → 邮件获取 License → App 激
 
 ## 如何使用
 
-1. 打开 app，在屏幕顶部菜单栏找到剪贴板图标。它没有 Dock 主窗口。
+1. 打开 app，在屏幕顶部菜单栏找到剪贴板图标。首次使用会显示主面板，平时驻留菜单栏。
 2. 出现问题时，点击 **「立即修复」**，等待几秒，在手机上重新复制，再到 Mac 粘贴。
 3. 激活 Pro 后，希望开盖唤醒或网络变化后自动执行时，勾选 **「网络变化／睡眠唤醒后自动修复」**。
 4. Pro 可以使用「登录时启动」。启用需要系统允许；自动修复只在 app 运行时生效。授权失效后不会执行自动修复，已有登录项仍可从菜单关闭。
@@ -80,7 +88,7 @@ killall -u "$(id -un)" useractivityd
 bash source/build.sh
 ```
 
-输出位于 `dist/`。构建两种架构、合并为通用版、进行 ad-hoc 签名，并运行当前架构的自测。没有 Developer ID 签名或 Apple 公证。
+生成 DMG：`bash scripts/package_dmg.sh`。正式构建使用 `bash source/build.sh --release`（当前测试模式会被拒绝）。输出位于 `dist/`。构建两种架构、合并为通用版、进行 ad-hoc 签名，并运行当前架构的自测。没有 Developer ID 签名或 Apple 公证。
 
 ```sh
 'dist/Fix Clipboard.app/Contents/MacOS/FixClipboard' --self-test
@@ -121,3 +129,5 @@ v1.4.0 使用原生状态面板、绿色对勾和笑脸剪贴板图标。VPN 已
 ## Pro 隐私与离线使用
 
 只有激活/验证/停用时会联系 Lemon Squeezy。发送 License Key、随机安装标识或 provider 激活实例 ID，不发送剪贴板、硬件标识或 Apple ID。不记录 API 响应里的客户信息。授权存在钥匙串；启动、唤醒及每小时重新验证，最近验证后有 7 天离线宽限，明确失效会关闭自动修复。卸载或换机前使用「停用此 Mac」联网释放名额。现有 MIT 开源许可不变。
+
+[隐私说明](docs/PRIVACY.md) · [发布验收清单](docs/RELEASE.md)

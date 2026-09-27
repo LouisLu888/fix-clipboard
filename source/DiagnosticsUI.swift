@@ -5,6 +5,7 @@ import CoreBluetooth
 final class DiagnosticsModel: NSObject, ObservableObject, CBCentralManagerDelegate {
     @Published var summary = ""
     @Published var loading = false
+    @Published var repairing = false
     @Published var authorization = CBManager.authorization
     private var manager: CBCentralManager?
     var refresh: (() -> Void)?
@@ -93,7 +94,7 @@ struct DiagnosticsView: View {
             HStack {
                 Button { model.refresh?() } label: { Label("重新检查", systemImage: "arrow.clockwise") }.disabled(model.loading)
                 Spacer()
-                Button("立即修复", action: repair).buttonStyle(.borderedProminent).tint(Color(red: 0.08, green: 0.46, blue: 0.35)).controlSize(.large)
+                Button(model.repairing ? "正在修复…" : "立即修复", action: repair).disabled(model.repairing).buttonStyle(.borderedProminent).tint(Color(red: 0.08, green: 0.46, blue: 0.35)).controlSize(.large)
             }
         }
         .padding(28).frame(width: 540).background(Color(nsColor: .windowBackgroundColor))

@@ -1,0 +1,25 @@
+name: 问题反馈
+description: 报告安装、诊断或修复问题；不要提交 License 或私人数据
+title: "[Bug] "
+body:
+  - type: markdown
+    attributes:
+      value: "请勿提交 License Key、购买邮箱、剪贴板正文或私人日志。订单问题请通过购买回执联系商家。"
+  - type: input
+    id: environment
+    attributes:
+      label: App 版本 / macOS 版本 / 芯片
+      placeholder: 1.5.0-rc.1 / macOS 26.6.1 / Apple Silicon
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤与实际结果
+      description: 请注明复制方向，以及 VPN/网络变化、睡眠唤醒是否相关。
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 预期结果

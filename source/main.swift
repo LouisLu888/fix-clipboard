@@ -6,29 +6,6 @@ import CoreWLAN
 import IOBluetooth
 import CoreBluetooth
 
-struct CommandResult {
-    let status: Int32
-    let output: String
-}
-
-func runCommand(_ path: String, _ arguments: [String]) -> CommandResult {
-    let process = Process()
-    process.executableURL = URL(fileURLWithPath: path)
-    process.arguments = arguments
-    let pipe = Pipe()
-    process.standardOutput = pipe
-    process.standardError = pipe
-    do {
-        try process.run()
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        return CommandResult(status: process.terminationStatus,
-                             output: String(data: data, encoding: .utf8) ?? "")
-    } catch {
-        return CommandResult(status: -1, output: error.localizedDescription)
-    }
-}
-
 func repair(execute: (String, [String]) -> CommandResult = runCommand) -> String? {
     let preference = NSHomeDirectory() + "/Library/Preferences/com.apple.coreservices.useractivityd.plist"
     let write = execute("/usr/bin/defaults", ["write", preference, "ClipboardSharingEnabled", "-bool", "true"])
@@ -41,6 +18,9 @@ func repair(execute: (String, [String]) -> CommandResult = runCommand) -> String
     for pid in pids {
         let identity = execute("/bin/ps", ["-p", String(pid), "-o", "uid=,lstart=,comm="])
         if identity.status == 0 { originals.append((String(pid), identity.output)) }
+        else if identity.status != 1 || !identity.output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return "无法确认共享服务状态，请稍后重试。"
+        }
     }
     let restart = execute("/usr/bin/killall", ["-u", NSUserName(), "useractivityd"])
     // Exit 1 means no matching process; it is already stopped and can be started on demand.
@@ -49,6 +29,9 @@ func repair(execute: (String, [String]) -> CommandResult = runCommand) -> String
     }
     for (pid, identity) in originals {
         let current = execute("/bin/ps", ["-p", pid, "-o", "uid=,lstart=,comm="])
+        if current.status != 0 && (current.status != 1 || !current.output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) {
+            return "无法确认共享服务是否退出，请稍后重试。"
+        }
         if current.status == 0 && current.output == identity {
             // SIGTERM remains pending on a SIGSTOP-paused process until it resumes.
             _ = execute("/bin/kill", ["-CONT", pid])
@@ -56,10 +39,15 @@ func repair(execute: (String, [String]) -> CommandResult = runCommand) -> String
     }
     let deadline = ProcessInfo.processInfo.systemUptime + 2
     while !originals.isEmpty {
-        originals = originals.filter { pid, identity in
+        var remaining: [(String, String)] = []
+        for (pid, identity) in originals {
             let current = execute("/bin/ps", ["-p", pid, "-o", "uid=,lstart=,comm="])
-            return current.status == 0 && current.output == identity
+            if current.status == 0 && current.output == identity { remaining.append((pid, identity)) }
+            else if current.status != 0 && (current.status != 1 || !current.output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) {
+                return "无法确认共享服务是否退出，请稍后重试。"
+            }
         }
+        originals = remaining
         if originals.isEmpty { break }
         if ProcessInfo.processInfo.systemUptime >= deadline { return "共享服务仍未退出，请稍后重试。" }
         Thread.sleep(forTimeInterval: 0.1)
@@ -130,6 +118,8 @@ struct NetworkRepairGate {
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let license = LicenseStore()
+    private let homeModel = HomeModel()
+    private var homeWindow: NSWindow?
     private var proWindow: NSWindow?
     private var licenseTimer: Timer?
     private var diagnosticWindow: NSWindow?
@@ -157,6 +147,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem.button?.toolTip = "Fix Clipboard · 修复跨设备复制粘贴"
         preferences.removeObject(forKey: "autoEnabled")
         preferences.removeObject(forKey: "nextRun")
+        homeModel.result = preferences.string(forKey: "lastResult")
+        homeModel.failed = preferences.bool(forKey: "lastFailed")
         license.onChange = { [weak self] in
             guard let self else { return }
             if !self.license.permitsAutomaticRepair {
@@ -179,9 +171,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             DispatchQueue.main.async { self?.pathChanged(path) }
         }
         monitor.start(queue: DispatchQueue(label: "local.fixclipboard.network"))
-        if !preferences.bool(forKey: "introduced") {
-            preferences.set(true, forKey: "introduced")
-            showInfo()
+        if !preferences.bool(forKey: "introducedHome") {
+            preferences.set(true, forKey: "introducedHome")
+            showHome()
         }
     }
 
@@ -201,25 +193,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func rebuildMenu() {
         let menu = NSMenu()
         menu.addItem(item(license.permitsAutomaticRepair ? "Fix Clipboard Pro" : "Fix Clipboard Free"))
-        menu.addItem(item("跨设备复制粘贴修复"))
+        menu.addItem(item("打开主面板…", action: #selector(showHome)))
         menu.addItem(.separator())
         let fix = item(busy ? "正在修复…" : "立即修复", action: #selector(fixNow))
         fix.isEnabled = !busy
         menu.addItem(fix)
         if let last = preferences.object(forKey: "lastAttempt") as? Date {
             menu.addItem(item("上次执行：\(formatted(last))"))
-            menu.addItem(item(preferences.string(forKey: "lastResult") ?? ""))
-        } else { menu.addItem(item("尚未执行修复")) }
+        }
         menu.addItem(.separator())
         let network = item(license.permitsAutomaticRepair ? "网络变化／睡眠唤醒后自动修复" : "🔒 自动修复 · Pro", action: #selector(toggleNetwork))
         network.state = networkEnabled ? .on : .off
         menu.addItem(network)
-        menu.addItem(item("含合盖睡眠后的开盖唤醒"))
+
         if networkEnabled {
             menu.addItem(item(networkGate.pendingAt == nil ? "监听网络变化和唤醒 · 稳定 3 秒 / 冷却 10 秒" : "已检测变化 · 等待网络稳定及冷却结束"))
         }
-        if let reason = preferences.string(forKey: "lastReason") { menu.addItem(item("触发原因：\(reason)")) }
-        menu.addItem(item("自动修复仅在本工具运行时生效"))
+
         let login = item("登录时启动 · Pro", action: #selector(toggleLogin))
         login.state = SMAppService.mainApp.status == .enabled ? .on : .off
         menu.addItem(login)
@@ -228,10 +218,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(.separator())
         menu.addItem(item("诊断…", action: #selector(showDiagnostics)))
         menu.addItem(item("使用说明…", action: #selector(showInfo)))
+        menu.addItem(item("下载更新…", action: #selector(openUpdates)))
+        menu.addItem(item("帮助与反馈…", action: #selector(openSupport)))
         menu.addItem(item("退出", action: #selector(quit)))
         menu.autoenablesItems = false
         for entry in menu.items where entry.action == nil { entry.isEnabled = false }
         statusItem.menu = menu
+        homeModel.busy = busy
+        diagnosticModel.repairing = busy
+        homeModel.autoEnabled = networkEnabled
+        homeModel.loginEnabled = SMAppService.mainApp.status == .enabled
+        homeModel.loginNeedsApproval = SMAppService.mainApp.status == .requiresApproval
+        homeModel.status = busy ? "正在重置共享服务" : (networkEnabled ? (networkGate.pendingAt == nil ? "自动修复已开启" : "等待网络稳定后自动修复") : "随时可以手动修复")
+        if let last = preferences.object(forKey: "lastAttempt") as? Date {
+            homeModel.lastRun = "上次执行：\(formatted(last)) · \(preferences.string(forKey: "lastReason") ?? "手动修复")"
+        }
+
     }
 
     @objc func toggleNetwork() {
@@ -281,10 +283,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             scheduleNetworkRepair()
         }
     }
-    @objc func fixNow() { performRepair(manual: true) }
+    @objc func fixNow() { showHome(); performRepair(manual: true) }
     func performRepair(manual: Bool, reason: String = "手动修复") {
         guard !busy, manual || networkEnabled else { return }
         busy = true
+        homeModel.result = nil
         networkWork?.cancel()
         networkGate.attempted(at: uptime)
         preferences.set(reason, forKey: "lastReason")
@@ -294,28 +297,46 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             DispatchQueue.main.async {
                 self.busy = false
                 self.preferences.set(Date(), forKey: "lastAttempt")
-                self.preferences.set(error == nil ? "修复命令已完成，请跨设备测试" : "执行失败，请点击立即修复查看详情", forKey: "lastResult")
+                self.preferences.set(error != nil, forKey: "lastFailed")
+                self.preferences.set(error == nil ? "修复命令已完成，请跨设备测试" : "上次重置未完成，请重新尝试或检查连接条件", forKey: "lastResult")
                 // Start a fresh cooldown after completion as well, including failures.
                 self.networkGate.lastAttempt = self.uptime
                 self.scheduleNetworkRepair()
                 self.rebuildMenu()
+                self.homeModel.failed = error != nil
+                self.homeModel.result = error ?? "重置已完成。请在另一台设备重新复制，并双向测试。"
                 if manual {
-                    let alert = NSAlert()
-                    alert.messageText = error == nil ? "修复命令已完成" : "修复未完成"
-                    alert.informativeText = error ?? "请等几秒，再测试 iPhone → Mac 和 Mac → iPhone 的复制粘贴。命令执行成功不代表跨设备连接已恢复。"
-                    alert.alertStyle = error == nil ? .informational : .warning
-                    NSApp.activate(ignoringOtherApps: true)
-                    let offer = error == nil && !self.license.permitsAutomaticRepair && !self.preferences.bool(forKey: "proOfferShown")
-                    if offer {
+                    self.showHome()
+                    if error == nil && !self.license.permitsAutomaticRepair && !self.preferences.bool(forKey: "proOfferShown") {
                         self.preferences.set(true, forKey: "proOfferShown")
-                        alert.informativeText += "\n\n想在网络变化或唤醒后自动执行？可以了解 Pro。"
-                        alert.addButton(withTitle: "完成")
-                        alert.addButton(withTitle: "了解自动修复")
+                        self.homeModel.offerPro = true
                     }
-                    if alert.runModal() == .alertSecondButtonReturn && offer { self.showPro() }
                 }
             }
         }
+    }
+    @objc func openUpdates() { NSWorkspace.shared.open(AppLinks.releases) }
+    @objc func openSupport() { NSWorkspace.shared.open(AppLinks.support) }
+    @objc func showHome() {
+        if homeWindow == nil {
+            let view = HomeView(model: homeModel, license: license,
+                repair: { [weak self] in self?.performRepair(manual: true) },
+                diagnostics: { [weak self] in self?.showDiagnostics() },
+                toggleAuto: { [weak self] in self?.toggleNetwork() },
+                toggleLogin: { [weak self] in self?.toggleLogin() },
+                showPro: { [weak self] in self?.showPro() })
+            let window = NSWindow(contentViewController: NSHostingController(rootView: view))
+            window.title = "Fix Clipboard"
+            window.styleMask = [.titled, .closable, .miniaturizable]
+            window.isReleasedWhenClosed = false
+            window.center()
+            homeWindow = window
+        }
+        homeWindow?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        showHome(); return true
     }
     @objc func showPro() {
         if proWindow == nil {
@@ -368,29 +389,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         diagnosticModel.loading = true
         diagnosticModel.authorization = CBManager.authorization
         // Run hardware queries in an isolated helper, with a bounded lifetime.
-        guard let executable = Bundle.main.executableURL else { return }
+        guard let executable = Bundle.main.executableURL else { diagnosticModel.loading = false; return }
         DispatchQueue.global(qos: .userInitiated).async {
-            let process = Process()
-            process.executableURL = executable
-            process.arguments = ["--diagnostics"]
-            let pipe = Pipe()
-            process.standardOutput = pipe
-            process.standardError = FileHandle.nullDevice
-            let finished = DispatchSemaphore(value: 0)
-            process.terminationHandler = { _ in finished.signal() }
-            var summary = "诊断未返回有效结果，请重新打开 App 后重试。"
-            do {
-                try process.run()
-                if finished.wait(timeout: .now() + 8) == .timedOut {
-                    process.terminate()
-                    if finished.wait(timeout: .now() + 1) == .timedOut { kill(process.processIdentifier, SIGKILL) }
-                    summary = "诊断超时，部分系统状态无法读取。没有修改系统设置。"
-                } else if process.terminationStatus == 0 {
-                    summary = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? summary
-                } else {
-                    summary = "诊断子进程异常退出（代码 \(process.terminationStatus)）。请更新 App；若仍失败，请提供此代码。"
-                }
-            } catch { summary = "无法启动诊断：\(error.localizedDescription)" }
+            let result = runBoundedCommand(executable.path, ["--diagnostics"], timeout: 8)
+            let summary: String
+            if result.status == 0 && !result.output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { summary = result.output }
+            else if result.status == -2 { summary = "诊断超时，部分系统状态无法读取。请稍后重新检查。" }
+            else { summary = "诊断未完成（代码 \(result.status)）。请重新检查或更新 App。" }
             let text = summary
             DispatchQueue.main.async {
                 self.diagnosticModel.summary = text
@@ -415,7 +420,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
-if CommandLine.arguments.contains("--license-self-test") {
+if CommandLine.arguments.contains("--process-self-test") {
+    let started = ProcessInfo.processInfo.systemUptime
+    assert(runBoundedCommand("/bin/sleep", ["5"], timeout: 0.05).status == -2)
+    assert(ProcessInfo.processInfo.systemUptime - started < 3)
+    let payload = String(repeating: "x", count: 80_000)
+    let captured = runBoundedCommand("/usr/bin/printf", ["%s", payload])
+    assert(captured.status == 0 && captured.output == payload)
+    assert(runBoundedCommand("/path/that/does/not/exist", []).status == -1)
+    print("PASS: bounded subprocess timeout, large output, launch error")
+} else if CommandLine.arguments.contains("--license-self-test") {
     Task { @MainActor in await runLicenseTests(); exit(0) }
     dispatchMain()
 } else if CommandLine.arguments.contains("--self-test") {
@@ -440,6 +454,11 @@ if CommandLine.arguments.contains("--license-self-test") {
     assert(calls.count == 1)
     assert(repair { path, _ in CommandResult(status: path.hasSuffix("killall") ? 1 : 0, output: "No matching processes belonging to you were found") } == nil)
     assert(repair { path, _ in CommandResult(status: path.hasSuffix("killall") ? 1 : 0, output: "Operation not permitted") } != nil)
+    assert(repair { path, _ in
+        if path.hasSuffix("pgrep") { return CommandResult(status: 0, output: "12345") }
+        if path.hasSuffix("ps") { return CommandResult(status: -2, output: "timeout") }
+        return CommandResult(status: 0, output: "")
+    } != nil) // A timed-out status probe must not report success.
     var gate = NetworkRepairGate()
     assert(gate.delay(at: 0) == nil)
     gate.changed(at: 10)
