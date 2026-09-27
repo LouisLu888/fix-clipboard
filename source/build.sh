@@ -5,7 +5,7 @@ APP="$ROOT/dist/Fix Clipboard.app"
 mkdir -p "$ROOT/build"
 mkdir -p "$APP/Contents/MacOS"
 for ARCH in arm64 x86_64; do
-  xcrun swiftc "$ROOT/source/main.swift" -target "${ARCH}-apple-macos13.0" -o "$ROOT/build/FixClipboard-$ARCH" -framework AppKit -framework Network -module-cache-path "${TMPDIR:-/tmp}/fix_clipboard_swift_cache"
+  xcrun swiftc "$ROOT/source/main.swift" -target "${ARCH}-apple-macos13.0" -o "$ROOT/build/FixClipboard-$ARCH" -framework AppKit -framework Network -framework CoreWLAN -framework IOBluetooth -module-cache-path "${TMPDIR:-/tmp}/fix_clipboard_swift_cache"
 done
 xcrun lipo -create "$ROOT/build/FixClipboard-arm64" "$ROOT/build/FixClipboard-x86_64" -output "$APP/Contents/MacOS/FixClipboard"
 cat > "$APP/Contents/Info.plist" <<'PLIST'
@@ -16,8 +16,8 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 <key>CFBundleIdentifier</key><string>local.louis.fixclipboard</string>
 <key>CFBundleName</key><string>Fix Clipboard</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>CFBundleShortVersionString</key><string>1.2.2</string>
-<key>CFBundleVersion</key><string>5</string>
+<key>CFBundleShortVersionString</key><string>1.3.0</string>
+<key>CFBundleVersion</key><string>6</string>
 <key>LSMinimumSystemVersion</key><string>13.0</string>
 <key>LSUIElement</key><true/>
 <key>NSHighResolutionCapable</key><true/>
@@ -28,5 +28,5 @@ codesign --force --sign - "$APP"
 
 codesign --verify --strict "$APP"
 cp "$ROOT/INSTALL.md" "$ROOT/dist/INSTALL.md"
-COPYFILE_DISABLE=1 /usr/bin/ditto -c -k --norsrc --noextattr --noacl --keepParent "$APP" "$ROOT/dist/Fix-Clipboard-1.2.2-universal.zip"
-(cd "$ROOT/dist" && shasum -a 256 Fix-Clipboard-1.2.2-universal.zip > SHA256SUMS.txt)
+COPYFILE_DISABLE=1 /usr/bin/ditto -c -k --norsrc --noextattr --noacl --keepParent "$APP" "$ROOT/dist/Fix-Clipboard-1.3.0-universal.zip"
+(cd "$ROOT/dist" && shasum -a 256 Fix-Clipboard-1.3.0-universal.zip > SHA256SUMS.txt)

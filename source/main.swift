@@ -1,5 +1,7 @@
 import AppKit
 import Network
+import CoreWLAN
+import IOBluetooth
 
 struct CommandResult {
     let status: Int32
@@ -60,6 +62,44 @@ func repair(execute: (String, [String]) -> CommandResult = runCommand) -> String
         Thread.sleep(forTimeInterval: 0.1)
     }
     return nil
+}
+
+func handoffStatus(_ advertising: Bool?, _ receiving: Bool?) -> String {
+    if advertising == false || receiving == false { return "✗ 偏好设置已关闭" }
+    if advertising == true && receiving == true { return "✓ 偏好设置已开启" }
+    return "? 未知，请在系统设置确认"
+}
+
+func vpnStatus(_ result: CommandResult) -> String {
+    guard result.status == 0 else { return "? 无法读取" }
+    if result.output.components(separatedBy: "\n").contains(where: { $0.contains("(Connected)") }) {
+        return "Active（系统报告已连接）"
+    }
+    return "未发现已连接项（不排除其他 VPN／代理）"
+}
+
+func diagnosticSummary() -> String {
+    let wifi: String
+    if let interface = CWWiFiClient.shared().interface() {
+        wifi = interface.powerOn() ? "✓ 电源开启" : "? 已关闭或读取失败"
+    } else { wifi = "? 无法读取" }
+    let bluetooth: String
+    if let controller = IOBluetoothHostController.default() {
+        switch controller.powerState.rawValue {
+        case 1: bluetooth = "✓ 电源开启"
+        case 0: bluetooth = "✗ 电源关闭"
+        default: bluetooth = "? 未初始化或无法读取"
+        }
+    } else { bluetooth = "? 无法读取" }
+    func preference(_ key: String) -> Bool? {
+        let value = CFPreferencesCopyValue(key as CFString, "com.apple.coreservices.useractivityd" as CFString,
+                                          kCFPreferencesCurrentUser, kCFPreferencesCurrentHost)
+        guard let value, CFGetTypeID(value) == CFBooleanGetTypeID() || CFGetTypeID(value) == CFNumberGetTypeID() else { return nil }
+        return (value as? NSNumber)?.boolValue
+    }
+    let handoff = handoffStatus(preference("ActivityAdvertisingAllowed"), preference("ActivityReceivingAllowed"))
+    let vpn = vpnStatus(runCommand("/usr/sbin/scutil", ["--nc", "list"]))
+    return "Wi-Fi        \(wifi)\nBluetooth    \(bluetooth)\nHandoff      \(handoff)\nVPN          \(vpn)\n\n排查建议：\n若 VPN 已连接，或问题发生在网络切换后，可能涉及 Continuity 连接状态。持续阻止本地通信的 VPN 设置需要单独调整。\n\n这里只检查本机基础状态，不代表跨设备连接正常。Handoff 来自未公开保证的本机偏好；VPN 检查可能漏掉第三方隧道或系统代理。"
 }
 
 // Monotonic clock values, independent of wall-clock adjustments.
@@ -151,6 +191,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let reason = preferences.string(forKey: "lastReason") { menu.addItem(item("触发原因：\(reason)")) }
         menu.addItem(item("自动修复仅在本工具运行时生效"))
         menu.addItem(.separator())
+        menu.addItem(item("诊断…", action: #selector(showDiagnostics)))
         menu.addItem(item("使用说明…", action: #selector(showInfo)))
         menu.addItem(item("退出", action: #selector(quit)))
         menu.autoenablesItems = false
@@ -232,6 +273,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
     }
+    @objc func showDiagnostics() {
+        // Run hardware queries in an isolated helper, with a bounded lifetime.
+        guard let executable = Bundle.main.executableURL else { return }
+        DispatchQueue.global(qos: .userInitiated).async {
+            let process = Process()
+            process.executableURL = executable
+            process.arguments = ["--diagnostics"]
+            let pipe = Pipe()
+            process.standardOutput = pipe
+            process.standardError = FileHandle.nullDevice
+            let finished = DispatchSemaphore(value: 0)
+            process.terminationHandler = { _ in finished.signal() }
+            var summary = "诊断无法完成，请稍后重试。"
+            do {
+                try process.run()
+                if finished.wait(timeout: .now() + 8) == .timedOut {
+                    process.terminate()
+                    if finished.wait(timeout: .now() + 1) == .timedOut { kill(process.processIdentifier, SIGKILL) }
+                    summary = "诊断超时，部分系统状态无法读取。没有修改系统设置。"
+                } else if process.terminationStatus == 0 {
+                    summary = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? summary
+                }
+            } catch { summary = "无法启动诊断：\(error.localizedDescription)" }
+            let text = summary
+            DispatchQueue.main.async {
+                let alert = NSAlert()
+                alert.messageText = "Continuity 诊断"
+                alert.informativeText = text
+                alert.addButton(withTitle: "关闭")
+                alert.addButton(withTitle: "立即修复")
+                NSApp.activate(ignoringOtherApps: true)
+                if alert.runModal() == .alertSecondButtonReturn { self.performRepair(manual: true) }
+            }
+        }
+    }
     @objc func showInfo() {
         let alert = NSAlert()
         alert.messageText = "Fix Clipboard 已在菜单栏就绪"
@@ -248,6 +324,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 if CommandLine.arguments.contains("--self-test") {
+    assert(handoffStatus(nil, nil).contains("未知"))
+    assert(handoffStatus(true, nil).contains("未知"))
+    assert(handoffStatus(true, false).contains("关闭"))
+    assert(handoffStatus(true, true).contains("开启"))
+    assert(vpnStatus(CommandResult(status: 0, output: "* (Disconnected) sample")).contains("未发现"))
+    assert(vpnStatus(CommandResult(status: 0, output: "* (Connected) sample")).hasPrefix("Active"))
+    assert(vpnStatus(CommandResult(status: 1, output: "")).contains("无法读取"))
     var calls: [(String, [String])] = []
     assert(repair { path, args in calls.append((path, args)); return CommandResult(status: 0, output: "") } == nil)
     assert(calls.count == 3 && calls[2].1 == ["-u", NSUserName(), "useractivityd"])
@@ -284,6 +367,8 @@ if CommandLine.arguments.contains("--self-test") {
     }
     assert(stoppedResult == nil && resumed && probes >= 3)
     print("PASS: paused-process recovery; network debounce, cooldown, deferred changes, cancellation; repair commands, failure handling, user-scoped restart, scheduling guards. No system settings changed.")
+} else if CommandLine.arguments.contains("--diagnostics") {
+    print(diagnosticSummary())
 } else if CommandLine.arguments.contains("--repair-test") {
     // Explicitly opted-in integration entry point: exactly the same repair as the menu.
     if let error = repair() { fputs(error + "\n", stderr); exit(1) }

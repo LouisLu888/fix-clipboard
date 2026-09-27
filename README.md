@@ -4,10 +4,11 @@
 
 **[项目主页](https://louislu888.github.io/fix-clipboard/)** · **[下载最新版](https://github.com/LouisLu888/fix-clipboard/releases/latest)** · [安装说明](INSTALL.md)
 
-## 当前版本：v1.2.2
+## 当前版本：v1.3.0
 
 - **立即修复**：启用 Mac 剪贴板共享，重启当前用户的 `useractivityd`。
 - **网络变化／睡眠唤醒后自动修复**：在菜单中按需开启，默认关闭。
+- **诊断…**：查看 Wi-Fi、蓝牙、Handoff 偏好及系统 VPN 状态，并可直接点击「立即修复」。
 - 显示上次执行时间、结果和触发原因。
 - 已移除每 4 小时定时修复，升级后旧定时设置自动清理。
 
@@ -87,3 +88,14 @@ MIT. See [LICENSE](LICENSE).
 `python3 tests/test_suite.py` 运行安全测试。`python3 tests/test_suite.py --fault-injection` 显式暂停本机 useractivityd 后调用真实修复函数，配有独立自动恢复保护，可能短暂影响 Handoff。详见 [测试说明与实测结果](tests/README.md)。
 
 2026-09-27 在 Apple Silicon / macOS 26.6.1 上，5 项测试全部通过。故障注入揭示并修复了旧版 SIGTERM 成功但暂停进程未退出的问题；这不等于跨设备传输验证。
+
+## Diagnostics
+
+菜单中的「诊断…」按需读取本机基础状态，不读取剪贴板正文、不扫描附近设备、不展示网络地址或 VPN 名称。诊断在独立子进程执行，超过 8 秒时显示超时，并清理该诊断子进程。
+
+- Wi-Fi：读取电源状态。关闭与 API 读取失败无法可靠区分时显示「已关闭或读取失败」。
+- Bluetooth：读取本机控制器电源状态。
+- Handoff：读取当前用户/当前主机的发送及接收偏好；两项明确开启才显示开启，缺失显示未知。这些偏好并非受公开 API 保证的健康检查。
+- VPN：系统连接列表报告 Connected 才显示 Active；未发现连接不排除其他第三方隧道、VPN 或代理。
+
+这些状态不能证明跨设备连接正常；VPN Active 也不代表已经确定故障原因。「立即修复」调用和主菜单相同的修复流程。

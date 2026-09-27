@@ -23,3 +23,5 @@ Before fix: 4 safe tests passed, fault-injection test failed. SIGTERM returned s
 After fix: all 5 tests passed. Repair now snapshots original processes, sends SIGTERM, resumes any surviving original process with SIGCONT, and waits up to 2 seconds for those identities to disappear. It reports failure when they remain; it does not escalate to SIGKILL.
 
 No claim of iPhone↔Mac end-to-end success: a human must copy a fresh harmless marker in each direction. Real lid close/open and VPN transition tests are still manual and have not been executed by this suite.
+
+Diagnostics regression cases are included in --self-test: missing/partial Handoff preferences stay unknown; explicit off remains off; Connected is distinguished from Disconnected; query failures remain unknown. On the development Mac, a live read-only diagnostic returned Wi-Fi on, Bluetooth on, Handoff preferences on and system VPN connected. Hardware-off, denied permission and the dialog timeout path have not been tested on-device.
