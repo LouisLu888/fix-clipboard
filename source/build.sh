@@ -28,5 +28,5 @@ codesign --force --sign - "$APP"
 
 codesign --verify --strict "$APP"
 cp "$ROOT/INSTALL.md" "$ROOT/dist/INSTALL.md"
-COPYFILE_DISABLE=1 /usr/bin/ditto -c -k --keepParent "$APP" "$ROOT/dist/Fix-Clipboard-1.2.0-universal.zip"
+COPYFILE_DISABLE=1 /usr/bin/ditto -c -k --norsrc --noextattr --noacl --keepParent "$APP" "$ROOT/dist/Fix-Clipboard-1.2.0-universal.zip"
 (cd "$ROOT/dist" && shasum -a 256 Fix-Clipboard-1.2.0-universal.zip > SHA256SUMS.txt)
