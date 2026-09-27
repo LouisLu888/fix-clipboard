@@ -18,7 +18,7 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 <key>CFBundleName</key><string>Fix Clipboard</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>CFBundleShortVersionString</key><string>1.5.0</string>
-<key>CFBundleVersion</key><string>9</string>
+<key>CFBundleVersion</key><string>10</string>
 <key>LSMinimumSystemVersion</key><string>13.0</string>
 <key>LSUIElement</key><true/>
 <key>NSBluetoothAlwaysUsageDescription</key><string>用于诊断蓝牙电源状态，帮助排查通用剪贴板问题；不会扫描或连接附近设备。</string>
@@ -34,5 +34,5 @@ codesign --force --sign - "$APP"
 
 codesign --verify --strict "$APP"
 cp "$ROOT/INSTALL.md" "$ROOT/dist/INSTALL.md"
-COPYFILE_DISABLE=1 /usr/bin/ditto -c -k --norsrc --noextattr --noacl --keepParent "$APP" "$ROOT/dist/Fix-Clipboard-1.5.0-beta.1-universal.zip"
-(cd "$ROOT/dist" && shasum -a 256 Fix-Clipboard-1.5.0-beta.1-universal.zip > SHA256SUMS.txt)
+COPYFILE_DISABLE=1 /usr/bin/ditto -c -k --norsrc --noextattr --noacl --keepParent "$APP" "$ROOT/dist/Fix-Clipboard-1.5.0-beta.2-universal.zip"
+(cd "$ROOT/dist" && shasum -a 256 Fix-Clipboard-1.5.0-beta.2-universal.zip > SHA256SUMS.txt)

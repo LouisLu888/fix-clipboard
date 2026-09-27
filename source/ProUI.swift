@@ -30,13 +30,17 @@ struct ProView: View {
                             .font(.caption).foregroundStyle(.secondary)
                     }
                     Spacer()
-                    Button(license.config.checkout == nil ? "购买暂未开放" : "升级 Pro") {
+                    Button(license.config.checkout == nil ? "购买暂未开放" : (license.config.testMode ? "打开测试支付" : "升级 Pro")) {
                         if let url = license.config.checkout { NSWorkspace.shared.open(url) }
                     }.buttonStyle(.borderedProminent).tint(Color(red: 0.08, green: 0.46, blue: 0.35))
                         .controlSize(.large).disabled(license.config.checkout == nil)
                 }
                 Text("价格与税费以付款页为准。浏览器支付，无需注册 App 账号。")
                     .font(.caption).foregroundStyle(.secondary)
+            }
+            if license.config.testMode {
+                Label("测试模式：仅用于联调，不是正式购买。", systemImage: "testtube.2")
+                    .font(.system(size: 12, weight: .semibold)).foregroundStyle(.orange)
             }
             Divider()
             if license.hasLicense {

@@ -4,9 +4,9 @@
 
 **[项目主页](https://louislu888.github.io/fix-clipboard/)** · **[下载最新版](https://github.com/LouisLu888/fix-clipboard/releases/latest)** · [安装说明](INSTALL.md)
 
-## 开发版：v1.5.0-beta.1 · Free / Pro
+## 开发版：v1.5.0-beta.2 · Free / Pro
 
-正式版仍为 v1.4.0；此分支是商业化测试版。Lemon Squeezy 尚未配置，购买和激活暂未开放。不要把测试版当作可收款的正式版本。
+正式版仍为 v1.4.0；此分支是商业化测试版。已接入 panda 的 Lemon Squeezy 测试商店，测试支付页显示 $9.99。App 明确标注测试模式；尚未完成订单与真实 license 激活验收，不能作为正式收款版本。
 
 | 功能 | Free | Pro |
 | --- | --- | --- |

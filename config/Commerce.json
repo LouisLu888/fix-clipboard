@@ -1,8 +1,9 @@
 {
-  "storeID": 0,
-  "productID": 0,
-  "variantID": 0,
-  "checkoutURL": "",
-  "priceLabel": "¥19.9 · 一次购买",
-  "deviceLimit": 3
+  "storeID": 484666,
+  "productID": 1392205,
+  "variantID": 2174236,
+  "checkoutURL": "https://panda.lemonsqueezy.com/checkout/buy/428fbb52-8630-4b87-b769-92a6f899bcb1",
+  "priceLabel": "$9.99 · 以付款页为准",
+  "deviceLimit": 3,
+  "testMode": true
 }

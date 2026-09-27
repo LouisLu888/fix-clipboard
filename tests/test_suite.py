@@ -20,8 +20,10 @@ class SafeTests(unittest.TestCase):
     def test_commerce_and_icon_resources(self):
         resources = APP.parents[1] / 'Resources'
         config = json.loads((resources / 'Commerce.json').read_text())
-        self.assertEqual(set(config), {'storeID', 'productID', 'variantID', 'checkoutURL', 'priceLabel', 'deviceLimit'})
+        self.assertEqual(set(config), {'storeID', 'productID', 'variantID', 'checkoutURL', 'priceLabel', 'deviceLimit', 'testMode'})
         self.assertGreater(config['deviceLimit'], 0)
+        self.assertIsInstance(config['testMode'], bool)
+        self.assertEqual(config, json.loads((ROOT / 'config/Commerce.json').read_text()))
         self.assertGreater((resources / 'AppIcon.icns').stat().st_size, 0)
     def test_license_flows(self):
         self.assertIn("license regression assertions", run(str(APP), "--license-self-test").stdout)

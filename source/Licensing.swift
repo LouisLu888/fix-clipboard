@@ -9,6 +9,7 @@ struct CommerceConfig: Codable, Equatable {
     let checkoutURL: String
     let priceLabel: String
     let deviceLimit: Int
+    var testMode: Bool = false
     var configured: Bool { storeID > 0 && productID > 0 && variantID > 0 }
     var checkout: URL? {
         guard configured, let url = URL(string: checkoutURL), url.scheme == "https",
