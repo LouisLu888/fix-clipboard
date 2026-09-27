@@ -1,8 +1,8 @@
-# Fix Clipboard
+# Fix Clipboard — Mac / iPhone 通用剪贴板修复工具
 
-一个免费的原生 macOS 菜单栏小工具：当 iPhone / iPad 与 Mac 的跨设备复制粘贴失灵时，一键重置 Mac 端共享服务。
+由 **LouisLu888** 发布的免费开源 macOS 菜单栏工具，用于重置 **Universal Clipboard（通用剪贴板）/ Handoff** 的 Mac 端服务：当 iPhone / iPad 与 Mac 的跨设备复制粘贴失灵时，一键重置 Mac 端共享服务。
 
-**[下载最新版](https://github.com/LouisLu888/fix-clipboard/releases/latest)** · [安装说明](INSTALL.md)
+**[项目主页](https://louislu888.github.io/fix-clipboard/)** · **[下载最新版](https://github.com/LouisLu888/fix-clipboard/releases/latest)** · [安装说明](INSTALL.md)
 
 ## 当前版本：v1.2.1
 
