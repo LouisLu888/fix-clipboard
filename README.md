@@ -4,7 +4,7 @@
 
 **[项目主页](https://louislu888.github.io/fix-clipboard/)** · **[下载最新版](https://github.com/LouisLu888/fix-clipboard/releases/latest)** · [安装说明](INSTALL.md)
 
-## 当前版本：v1.3.0
+## 当前版本：v1.3.1
 
 - **立即修复**：启用 Mac 剪贴板共享，重启当前用户的 `useractivityd`。
 - **网络变化／睡眠唤醒后自动修复**：在菜单中按需开启，默认关闭。
@@ -99,3 +99,5 @@ MIT. See [LICENSE](LICENSE).
 - VPN：系统连接列表报告 Connected 才显示 Active；未发现连接不排除其他第三方隧道、VPN 或代理。
 
 这些状态不能证明跨设备连接正常；VPN Active 也不代表已经确定故障原因。「立即修复」调用和主菜单相同的修复流程。
+
+蓝牙未授权时显示未知，不发起授权弹窗，也不会阻止其他项目完成诊断。v1.3.1 修复 GUI 诊断因缺少蓝牙权限用途声明而被 macOS 终止的问题。

@@ -2,6 +2,7 @@ import AppKit
 import Network
 import CoreWLAN
 import IOBluetooth
+import CoreBluetooth
 
 struct CommandResult {
     let status: Int32
@@ -78,19 +79,26 @@ func vpnStatus(_ result: CommandResult) -> String {
     return "未发现已连接项（不排除其他 VPN／代理）"
 }
 
+// Never initialize the controller until permission is granted: initialization can invoke TCC.
+func bluetoothStatus(authorization: CBManagerAuthorization, power: () -> UInt32?) -> String {
+    guard authorization == .allowedAlways else {
+        return "? 未授权，电源状态未知；请在系统设置确认蓝牙开关"
+    }
+    switch power() {
+    case 1: return "✓ 电源开启"
+    case 0: return "✗ 电源关闭"
+    default: return "? 未初始化或无法读取"
+    }
+}
+
 func diagnosticSummary() -> String {
     let wifi: String
     if let interface = CWWiFiClient.shared().interface() {
         wifi = interface.powerOn() ? "✓ 电源开启" : "? 已关闭或读取失败"
     } else { wifi = "? 无法读取" }
-    let bluetooth: String
-    if let controller = IOBluetoothHostController.default() {
-        switch controller.powerState.rawValue {
-        case 1: bluetooth = "✓ 电源开启"
-        case 0: bluetooth = "✗ 电源关闭"
-        default: bluetooth = "? 未初始化或无法读取"
-        }
-    } else { bluetooth = "? 无法读取" }
+    let bluetooth = bluetoothStatus(authorization: CBManager.authorization) {
+        IOBluetoothHostController.default()?.powerState.rawValue
+    }
     func preference(_ key: String) -> Bool? {
         let value = CFPreferencesCopyValue(key as CFString, "com.apple.coreservices.useractivityd" as CFString,
                                           kCFPreferencesCurrentUser, kCFPreferencesCurrentHost)
@@ -285,7 +293,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             process.standardError = FileHandle.nullDevice
             let finished = DispatchSemaphore(value: 0)
             process.terminationHandler = { _ in finished.signal() }
-            var summary = "诊断无法完成，请稍后重试。"
+            var summary = "诊断未返回有效结果，请重新打开 App 后重试。"
             do {
                 try process.run()
                 if finished.wait(timeout: .now() + 8) == .timedOut {
@@ -294,6 +302,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     summary = "诊断超时，部分系统状态无法读取。没有修改系统设置。"
                 } else if process.terminationStatus == 0 {
                     summary = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? summary
+                } else {
+                    summary = "诊断子进程异常退出（代码 \(process.terminationStatus)）。请更新 App；若仍失败，请提供此代码。"
                 }
             } catch { summary = "无法启动诊断：\(error.localizedDescription)" }
             let text = summary
@@ -324,6 +334,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 if CommandLine.arguments.contains("--self-test") {
+    for authorization in [CBManagerAuthorization.notDetermined, .denied, .restricted] {
+        assert(bluetoothStatus(authorization: authorization, power: { fatalError("Unauthorized hardware access") }).contains("未授权"))
+    }
+    assert(bluetoothStatus(authorization: .allowedAlways, power: { 1 }).contains("开启"))
+    assert(bluetoothStatus(authorization: .allowedAlways, power: { 0 }).contains("关闭"))
+    assert(bluetoothStatus(authorization: .allowedAlways, power: { nil }).contains("无法读取"))
     assert(handoffStatus(nil, nil).contains("未知"))
     assert(handoffStatus(true, nil).contains("未知"))
     assert(handoffStatus(true, false).contains("关闭"))

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Safe tests by default; --fault-injection pauses the current user's useractivityd."""
+import plistlib
 import argparse, os, pathlib, signal, subprocess, sys, time, unittest
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 APP = ROOT / 'dist/Fix Clipboard.app/Contents/MacOS/FixClipboard'
@@ -23,6 +24,14 @@ class SafeTests(unittest.TestCase):
         result = run('/usr/bin/lipo', '-archs', str(APP)).stdout
         self.assertIn('arm64', result)
         self.assertIn('x86_64', result)
+    def test_bluetooth_privacy_declaration(self):
+        with (APP.parents[1] / 'Info.plist').open('rb') as f:
+            info = plistlib.load(f)
+        self.assertTrue(info.get('NSBluetoothAlwaysUsageDescription', '').strip())
+    def test_diagnostics(self):
+        output = run(str(APP), '--diagnostics').stdout
+        for label in ['Wi-Fi', 'Bluetooth', 'Handoff', 'VPN']:
+            self.assertIn(label, output)
     def test_bundle_signature(self):
         run('/usr/bin/codesign', '--verify', '--strict', str(APP.parents[2]))
 

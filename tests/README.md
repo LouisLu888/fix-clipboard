@@ -25,3 +25,7 @@ After fix: all 5 tests passed. Repair now snapshots original processes, sends SI
 No claim of iPhone↔Mac end-to-end success: a human must copy a fresh harmless marker in each direction. Real lid close/open and VPN transition tests are still manual and have not been executed by this suite.
 
 Diagnostics regression cases are included in --self-test: missing/partial Handoff preferences stay unknown; explicit off remains off; Connected is distinguished from Disconnected; query failures remain unknown. On the development Mac, a live read-only diagnostic returned Wi-Fi on, Bluetooth on, Handoff preferences on and system VPN connected. Hardware-off, denied permission and the dialog timeout path have not been tested on-device.
+
+### v1.3.1 蓝牙权限回归
+
+真实 GUI 崩溃报告确认 v1.3.0 缺少 NSBluetoothAlwaysUsageDescription，IOBluetooth 初始化被 TCC 终止。新增安装包声明检查、诊断输出检查，以及未确定/拒绝/受限授权时绝不调用硬件读取的断言。默认共 6 项测试，在沙箱与真实 macOS 环境均通过。CLI 实测四项均返回；GUI 自动化连接超时，尚未完成新版本菜单点击验证。CLI 权限归属与 GUI 不同，不能替代此验收。未授权会显示蓝牙状态未知，不弹权限申请；需自行在系统设置确认蓝牙开关。
