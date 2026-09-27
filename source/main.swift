@@ -36,11 +36,6 @@ func repair(execute: (String, [String]) -> CommandResult = runCommand) -> String
     return nil
 }
 
-let interval: TimeInterval = 4 * 60 * 60
-func isDue(enabled: Bool, busy: Bool, due: Date?, now: Date) -> Bool {
-    enabled && !busy && due.map { now >= $0 } == true
-}
-
 // Monotonic clock values, independent of wall-clock adjustments.
 struct NetworkRepairGate {
     var pendingAt: TimeInterval?
@@ -60,7 +55,6 @@ struct NetworkRepairGate {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let preferences = UserDefaults.standard
     private var statusItem: NSStatusItem!
-    private var timer: Timer?
     private var busy = false
     private let monitor = NWPathMonitor()
     private var previousPath: NWPath?
@@ -70,8 +64,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var networkWork: DispatchWorkItem?
     private var networkEnabled: Bool { preferences.bool(forKey: "networkEnabled") }
     private var uptime: TimeInterval { ProcessInfo.processInfo.systemUptime }
-    private var autoEnabled: Bool { preferences.bool(forKey: "autoEnabled") }
-    private var nextRun: Date? { preferences.object(forKey: "nextRun") as? Date }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         let peers = NSRunningApplication.runningApplications(withBundleIdentifier: Bundle.main.bundleIdentifier ?? "local.fixclipboard")
@@ -82,16 +74,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         statusItem.button?.image = NSImage(systemSymbolName: "clipboard", accessibilityDescription: "Fix Clipboard")
         statusItem.button?.toolTip = "Fix Clipboard · 修复跨设备复制粘贴"
-        if autoEnabled && nextRun == nil { preferences.set(Date().addingTimeInterval(interval), forKey: "nextRun") }
+        preferences.removeObject(forKey: "autoEnabled")
+        preferences.removeObject(forKey: "nextRun")
         rebuildMenu()
-        timer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in self?.checkSchedule() }
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(woke), name: NSWorkspace.didWakeNotification, object: nil)
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(willSleep), name: NSWorkspace.willSleepNotification, object: nil)
         monitor.pathUpdateHandler = { [weak self] path in
             DispatchQueue.main.async { self?.pathChanged(path) }
         }
         monitor.start(queue: DispatchQueue(label: "local.fixclipboard.network"))
-        checkSchedule()
         if !preferences.bool(forKey: "introduced") {
             preferences.set(true, forKey: "introduced")
             showInfo()
@@ -124,17 +115,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             menu.addItem(item(preferences.string(forKey: "lastResult") ?? ""))
         } else { menu.addItem(item("尚未执行修复")) }
         menu.addItem(.separator())
-        let network = item("网络变化后自动修复", action: #selector(toggleNetwork))
+        let network = item("网络变化／睡眠唤醒后自动修复", action: #selector(toggleNetwork))
         network.state = networkEnabled ? .on : .off
         menu.addItem(network)
+        menu.addItem(item("含合盖睡眠后的开盖唤醒"))
         if networkEnabled {
-            menu.addItem(item(networkGate.pendingAt == nil ? "监听网络变化 · 稳定 3 秒 / 冷却 10 秒" : "已检测变化 · 等待网络稳定及冷却结束"))
+            menu.addItem(item(networkGate.pendingAt == nil ? "监听网络变化和唤醒 · 稳定 3 秒 / 冷却 10 秒" : "已检测变化 · 等待网络稳定及冷却结束"))
         }
         if let reason = preferences.string(forKey: "lastReason") { menu.addItem(item("触发原因：\(reason)")) }
-        let automatic = item("每 4 小时自动修复", action: #selector(toggleAuto))
-        automatic.state = autoEnabled ? .on : .off
-        menu.addItem(automatic)
-        if autoEnabled, let next = nextRun { menu.addItem(item("下次执行：\(formatted(next))")) }
         menu.addItem(item("自动修复仅在本工具运行时生效"))
         menu.addItem(.separator())
         menu.addItem(item("使用说明…", action: #selector(showInfo)))
@@ -142,14 +130,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.autoenablesItems = false
         for entry in menu.items where entry.action == nil { entry.isEnabled = false }
         statusItem.menu = menu
-    }
-
-    @objc func toggleAuto() {
-        let enabled = !autoEnabled
-        preferences.set(enabled, forKey: "autoEnabled")
-        if enabled { preferences.set(Date().addingTimeInterval(interval), forKey: "nextRun") }
-        else { preferences.removeObject(forKey: "nextRun") }
-        rebuildMenu()
     }
 
     @objc func toggleNetwork() {
@@ -196,10 +176,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             pathReady = monitor.currentPath.status == .satisfied
             scheduleNetworkRepair()
         }
-        checkSchedule()
-    }
-    func checkSchedule() {
-        if !sleeping && isDue(enabled: autoEnabled, busy: busy, due: nextRun, now: Date()) { performRepair(manual: false, reason: "每 4 小时定时") }
     }
     @objc func fixNow() { performRepair(manual: true) }
     func performRepair(manual: Bool, reason: String = "手动修复") {
@@ -215,7 +191,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self.busy = false
                 self.preferences.set(Date(), forKey: "lastAttempt")
                 self.preferences.set(error == nil ? "修复命令已完成，请跨设备测试" : "执行失败，请点击立即修复查看详情", forKey: "lastResult")
-                if self.autoEnabled { self.preferences.set(Date().addingTimeInterval(interval), forKey: "nextRun") }
                 // Start a fresh cooldown after completion as well, including failures.
                 self.networkGate.lastAttempt = self.uptime
                 self.scheduleNetworkRepair()
@@ -234,7 +209,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func showInfo() {
         let alert = NSAlert()
         alert.messageText = "Fix Clipboard 已在菜单栏就绪"
-        alert.informativeText = "点击菜单栏的剪贴板图标，再选「立即修复」。\n\n工具会启用 ClipboardSharingEnabled 并重启当前用户的 useractivityd，可能短暂中断 Handoff。无需管理员权限。\n\n网络变化自动修复默认关闭：路径变化或唤醒后稳定 3 秒再执行，自动网络修复间隔至少 10 秒。离线时等待恢复；首次启动只记录基线。另有独立的每 4 小时定时选项。退出工具会停止自动修复。\n\n工具不会读取或保存剪贴板内容。网络变化不代表故障，监听也不保证捕获所有 VPN、DNS 或路由变化；手机端变化无法由 Mac 直接感知。"
+        alert.informativeText = "点击菜单栏的剪贴板图标，再选「立即修复」。\n\n工具会启用 ClipboardSharingEnabled 并重启当前用户的 useractivityd，可能短暂中断 Handoff。无需管理员权限。\n\n网络变化／睡眠唤醒自动修复默认关闭：路径变化或唤醒后稳定 3 秒再执行，自动网络修复间隔至少 10 秒。离线时等待恢复；首次启动只记录基线。合盖进入睡眠后，开盖唤醒也会触发；合盖未睡眠时不保证触发。退出工具会停止自动修复。\n\n工具不会读取或保存剪贴板内容。网络变化不代表故障，监听也不保证捕获所有 VPN、DNS 或路由变化；手机端变化无法由 Mac 直接感知。"
         alert.addButton(withTitle: "知道了")
         NSApp.activate(ignoringOtherApps: true)
         alert.runModal()
@@ -255,12 +230,6 @@ if CommandLine.arguments.contains("--self-test") {
     assert(calls.count == 1)
     assert(repair { path, _ in CommandResult(status: path.hasSuffix("killall") ? 1 : 0, output: "No matching processes belonging to you were found") } == nil)
     assert(repair { path, _ in CommandResult(status: path.hasSuffix("killall") ? 1 : 0, output: "Operation not permitted") } != nil)
-    let now = Date()
-    assert(isDue(enabled: true, busy: false, due: now.addingTimeInterval(-1), now: now))
-    assert(!isDue(enabled: false, busy: false, due: now, now: now))
-    assert(!isDue(enabled: true, busy: true, due: now, now: now))
-    assert(!isDue(enabled: true, busy: false, due: now.addingTimeInterval(1), now: now))
-    assert(!isDue(enabled: true, busy: false, due: nil, now: now))
     var gate = NetworkRepairGate()
     assert(gate.delay(at: 0) == nil)
     gate.changed(at: 10)
