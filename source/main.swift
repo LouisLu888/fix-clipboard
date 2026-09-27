@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import ServiceManagement
 import Network
 import CoreWLAN
 import IOBluetooth
@@ -128,6 +129,9 @@ struct NetworkRepairGate {
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    private let license = LicenseStore()
+    private var proWindow: NSWindow?
+    private var licenseTimer: Timer?
     private var diagnosticWindow: NSWindow?
     private let diagnosticModel = DiagnosticsModel()
     private let preferences = UserDefaults.standard
@@ -139,7 +143,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var sleeping = false
     private var networkGate = NetworkRepairGate()
     private var networkWork: DispatchWorkItem?
-    private var networkEnabled: Bool { preferences.bool(forKey: "networkEnabled") }
+    private var networkEnabled: Bool { license.permitsAutomaticRepair && preferences.bool(forKey: "networkEnabled") }
     private var uptime: TimeInterval { ProcessInfo.processInfo.systemUptime }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -153,6 +157,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem.button?.toolTip = "Fix Clipboard · 修复跨设备复制粘贴"
         preferences.removeObject(forKey: "autoEnabled")
         preferences.removeObject(forKey: "nextRun")
+        license.onChange = { [weak self] in
+            guard let self else { return }
+            if !self.license.permitsAutomaticRepair {
+                self.networkWork?.cancel()
+                self.networkGate.cancel()
+                self.preferences.set(false, forKey: "networkEnabled")
+            }
+            self.rebuildMenu()
+        }
+        license.load()
+        Task { await license.validate() }
+        licenseTimer = Timer.scheduledTimer(withTimeInterval: 3600, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            Task { await self.license.validate() }
+        }
         rebuildMenu()
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(woke), name: NSWorkspace.didWakeNotification, object: nil)
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(willSleep), name: NSWorkspace.willSleepNotification, object: nil)
@@ -181,7 +200,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func rebuildMenu() {
         let menu = NSMenu()
-        menu.addItem(item("Fix Clipboard"))
+        menu.addItem(item(license.permitsAutomaticRepair ? "Fix Clipboard Pro" : "Fix Clipboard Free"))
         menu.addItem(item("跨设备复制粘贴修复"))
         menu.addItem(.separator())
         let fix = item(busy ? "正在修复…" : "立即修复", action: #selector(fixNow))
@@ -192,7 +211,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             menu.addItem(item(preferences.string(forKey: "lastResult") ?? ""))
         } else { menu.addItem(item("尚未执行修复")) }
         menu.addItem(.separator())
-        let network = item("网络变化／睡眠唤醒后自动修复", action: #selector(toggleNetwork))
+        let network = item(license.permitsAutomaticRepair ? "网络变化／睡眠唤醒后自动修复" : "🔒 自动修复 · Pro", action: #selector(toggleNetwork))
         network.state = networkEnabled ? .on : .off
         menu.addItem(network)
         menu.addItem(item("含合盖睡眠后的开盖唤醒"))
@@ -201,6 +220,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         if let reason = preferences.string(forKey: "lastReason") { menu.addItem(item("触发原因：\(reason)")) }
         menu.addItem(item("自动修复仅在本工具运行时生效"))
+        let login = item("登录时启动 · Pro", action: #selector(toggleLogin))
+        login.state = SMAppService.mainApp.status == .enabled ? .on : .off
+        menu.addItem(login)
+        if SMAppService.mainApp.status == .requiresApproval { menu.addItem(item("登录项等待系统批准")) }
+        menu.addItem(item(license.permitsAutomaticRepair ? "管理 Pro 授权…" : "升级 Pro / 输入 License…", action: #selector(showPro)))
         menu.addItem(.separator())
         menu.addItem(item("诊断…", action: #selector(showDiagnostics)))
         menu.addItem(item("使用说明…", action: #selector(showInfo)))
@@ -211,6 +235,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc func toggleNetwork() {
+        guard license.permitsAutomaticRepair else { showPro(); return }
         preferences.set(!networkEnabled, forKey: "networkEnabled")
         networkGate.cancel()
         networkWork?.cancel()
@@ -249,6 +274,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     @objc func woke() {
         sleeping = false
+        Task { await license.validate() }
         if networkEnabled {
             networkGate.changed(at: uptime)
             pathReady = monitor.currentPath.status == .satisfied
@@ -257,7 +283,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     @objc func fixNow() { performRepair(manual: true) }
     func performRepair(manual: Bool, reason: String = "手动修复") {
-        guard !busy else { return }
+        guard !busy, manual || networkEnabled else { return }
         busy = true
         networkWork?.cancel()
         networkGate.attempted(at: uptime)
@@ -279,9 +305,46 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     alert.informativeText = error ?? "请等几秒，再测试 iPhone → Mac 和 Mac → iPhone 的复制粘贴。命令执行成功不代表跨设备连接已恢复。"
                     alert.alertStyle = error == nil ? .informational : .warning
                     NSApp.activate(ignoringOtherApps: true)
-                    alert.runModal()
+                    let offer = error == nil && !self.license.permitsAutomaticRepair && !self.preferences.bool(forKey: "proOfferShown")
+                    if offer {
+                        self.preferences.set(true, forKey: "proOfferShown")
+                        alert.informativeText += "\n\n想在网络变化或唤醒后自动执行？可以了解 Pro。"
+                        alert.addButton(withTitle: "完成")
+                        alert.addButton(withTitle: "了解自动修复")
+                    }
+                    if alert.runModal() == .alertSecondButtonReturn && offer { self.showPro() }
                 }
             }
+        }
+    }
+    @objc func showPro() {
+        if proWindow == nil {
+            let window = NSWindow(contentViewController: NSHostingController(rootView: ProView(license: license)))
+            window.title = "Fix Clipboard Pro"
+            window.styleMask = [.titled, .closable, .miniaturizable]
+            window.isReleasedWhenClosed = false
+            window.center()
+            proWindow = window
+        }
+        proWindow?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+    @objc func toggleLogin() {
+        // Removing an existing login item remains available without Pro.
+        do {
+            if SMAppService.mainApp.status == .enabled || SMAppService.mainApp.status == .requiresApproval {
+                try SMAppService.mainApp.unregister()
+            } else {
+                guard license.permitsAutomaticRepair else { showPro(); return }
+                try SMAppService.mainApp.register()
+            }
+            rebuildMenu()
+            if SMAppService.mainApp.status == .requiresApproval { SMAppService.openSystemSettingsLoginItems() }
+        } catch {
+            let alert = NSAlert()
+            alert.messageText = "无法更新登录项"
+            alert.informativeText = "请将 App 放入应用程序文件夹后重试，也可在系统设置 → 通用 → 登录项检查。\n" + error.localizedDescription
+            alert.runModal()
         }
     }
     @objc func showDiagnostics() {
@@ -339,19 +402,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func showInfo() {
         let alert = NSAlert()
         alert.messageText = "Fix Clipboard 已在菜单栏就绪"
-        alert.informativeText = "点击菜单栏的剪贴板图标，再选「立即修复」。\n\n工具会启用 ClipboardSharingEnabled 并重启当前用户的 useractivityd，可能短暂中断 Handoff。无需管理员权限。\n\n网络变化／睡眠唤醒自动修复默认关闭：路径变化或唤醒后稳定 3 秒再执行，自动网络修复间隔至少 10 秒。离线时等待恢复；首次启动只记录基线。合盖进入睡眠后，开盖唤醒也会触发；合盖未睡眠时不保证触发。退出工具会停止自动修复。\n\n工具不会读取或保存剪贴板内容。网络变化不代表故障，监听也不保证捕获所有 VPN、DNS 或路由变化；手机端变化无法由 Mac 直接感知。"
+        alert.informativeText = "点击菜单栏的剪贴板图标，再选「立即修复」。\n\n工具会启用 ClipboardSharingEnabled 并重启当前用户的 useractivityd，可能短暂中断 Handoff。无需管理员权限。\n\nPro 的网络变化／睡眠唤醒自动修复默认关闭：路径变化或唤醒后稳定 3 秒再执行，自动网络修复间隔至少 10 秒。离线时等待恢复；首次启动只记录基线。合盖进入睡眠后，开盖唤醒也会触发；合盖未睡眠时不保证触发。退出工具会停止自动修复。\n\n工具不会读取或保存剪贴板内容。网络变化不代表故障，监听也不保证捕获所有 VPN、DNS 或路由变化；手机端变化无法由 Mac 直接感知。"
         alert.addButton(withTitle: "知道了")
         NSApp.activate(ignoringOtherApps: true)
         alert.runModal()
     }
     @objc func quit() {
+        licenseTimer?.invalidate()
         networkWork?.cancel()
         monitor.cancel()
         NSApp.terminate(nil)
     }
 }
 
-if CommandLine.arguments.contains("--self-test") {
+if CommandLine.arguments.contains("--license-self-test") {
+    Task { @MainActor in await runLicenseTests(); exit(0) }
+    dispatchMain()
+} else if CommandLine.arguments.contains("--self-test") {
     for authorization in [CBManagerAuthorization.notDetermined, .denied, .restricted] {
         assert(bluetoothStatus(authorization: authorization, power: { fatalError("Unauthorized hardware access") }).contains("未授权"))
     }

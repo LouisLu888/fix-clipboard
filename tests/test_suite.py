@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Safe tests by default; --fault-injection pauses the current user's useractivityd."""
+import json
 import plistlib
 import argparse, os, pathlib, signal, subprocess, sys, time, unittest
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -16,6 +17,14 @@ def stopped(pid):
     return 'T' in run('/bin/ps', '-p', str(pid), '-o', 'stat=', check=False).stdout
 
 class SafeTests(unittest.TestCase):
+    def test_commerce_and_icon_resources(self):
+        resources = APP.parents[1] / 'Resources'
+        config = json.loads((resources / 'Commerce.json').read_text())
+        self.assertEqual(set(config), {'storeID', 'productID', 'variantID', 'checkoutURL', 'priceLabel', 'deviceLimit'})
+        self.assertGreater(config['deviceLimit'], 0)
+        self.assertGreater((resources / 'AppIcon.icns').stat().st_size, 0)
+    def test_license_flows(self):
+        self.assertIn("license regression assertions", run(str(APP), "--license-self-test").stdout)
     def test_repair_and_schedule(self):
         self.assertIn('PASS:', run(str(APP), '--self-test').stdout)
     def test_real_network_callback(self):

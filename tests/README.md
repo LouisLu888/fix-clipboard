@@ -33,3 +33,10 @@ Diagnostics regression cases are included in --self-test: missing/partial Handof
 ### v1.4.0 原生面板与授权
 
 新增 SwiftUI 诊断窗口、状态颜色与文字双重标记、可重现生成的 AppIcon。授权按钮只在用户点击时创建 CBCentralManager；拒绝后引导系统设置，授权状态回调刷新诊断。构建覆盖 arm64/x86_64，默认回归测试仍为 6 项。真实 GUI 与系统授权弹窗验收尚未完成：自动审批阻止启动本地构建的 App，等待用户允许；不以 CLI 测试替代 GUI 验收。
+
+
+### v1.5.0-beta.1 商业化回归
+
+默认 suite 新增 `--license-self-test`，使用 mock API 与内存 vault，不发出支付/激活请求、不访问钥匙串。覆盖 Free 默认状态、未配置关闭购买、商品匹配、名额满、重复激活、实例绑定、离线宽限及过期、撤销持久化、恢复授权、停用、存储失败回滚、表单编码与异常 HTTP/JSON。真实 merchant/test order、Keychain 升级访问、GUI 和登录项仍待验收；详见 docs/LEMONSQUEEZY_SETUP.md。
+
+本机最终结果：8 项测试通过，授权自测包含 33 条断言；Apple Silicon/macOS 26.6.1。双架构编译与签名验证通过，Intel 未实机运行。此次 GUI 自动化再次连接超时，没有窗口点击验收证据。
