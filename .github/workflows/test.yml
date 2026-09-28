@@ -11,6 +11,8 @@ jobs:
         run: bash source/build.sh
       - name: Safe integration suite (no daemon signals)
         run: python3 tests/test_suite.py
+      - name: Offline seller license issuance (temporary keys only)
+        run: python3 tests/test_manual_issuer.py
       - name: Package and verify candidate DMG
         run: bash scripts/package_dmg.sh
       - name: Preserve candidate artifacts

@@ -94,7 +94,8 @@ struct HomeView: View {
                 HStack {
                     Button(license.isPro ? "管理 Pro 授权" : (model.offerPro ? "下次自动处理 · 了解 Pro" : "了解 Pro / 激活 License"), action: showPro)
                     Spacer()
-                    if license.config.testMode { Text("测试版 · 非正式购买").font(.caption).foregroundStyle(.orange) }
+                    if license.config.manualSales { Text("微信购买 · 买断授权").font(.caption).foregroundStyle(.secondary) }
+                    else if license.config.testMode { Text("测试版 · 非正式购买").font(.caption).foregroundStyle(.orange) }
                 }
                 Divider()
                 HStack(spacing: 16) {

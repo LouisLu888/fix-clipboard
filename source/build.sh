@@ -3,15 +3,15 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 MODE="${1:---candidate}"
 VERSION="1.5.0"
-BUILD="13"
+BUILD="14"
 if [[ "$MODE" == "--release" ]]; then
   python3 "$ROOT/scripts/release_check.py" --production
   PACKAGE_VERSION="$VERSION"
   CHANNEL="release"
 elif [[ "$MODE" == "--candidate" ]]; then
   python3 "$ROOT/scripts/release_check.py"
-  PACKAGE_VERSION="$VERSION-rc.3"
-  CHANNEL="rc.3"
+  PACKAGE_VERSION="$VERSION-rc.4"
+  CHANNEL="rc.4"
 else
   echo "Usage: bash source/build.sh [--candidate|--release]" >&2
   exit 2
@@ -19,7 +19,7 @@ fi
 APP="$ROOT/dist/Fix Clipboard.app"
 mkdir -p "$ROOT/build" "$APP/Contents/MacOS" "$APP/Contents/Resources"
 for ARCH in arm64 x86_64; do
-  xcrun swiftc "$ROOT/source/main.swift" "$ROOT/source/ProcessRunner.swift" "$ROOT/source/HomeUI.swift" "$ROOT/source/DiagnosticsUI.swift" "$ROOT/source/Licensing.swift" "$ROOT/source/ProUI.swift" "$ROOT/source/LicenseTests.swift" -target "${ARCH}-apple-macos13.0" -o "$ROOT/build/FixClipboard-$ARCH" -framework AppKit -framework Network -framework CoreWLAN -framework IOBluetooth -framework CoreBluetooth -framework Security -framework ServiceManagement -module-cache-path "${TMPDIR:-/tmp}/fix_clipboard_swift_cache"
+  xcrun swiftc "$ROOT/source/main.swift" "$ROOT/source/ProcessRunner.swift" "$ROOT/source/HomeUI.swift" "$ROOT/source/DiagnosticsUI.swift" "$ROOT/source/Licensing.swift" "$ROOT/source/ManualLicense.swift" "$ROOT/source/ProUI.swift" "$ROOT/source/LicenseTests.swift" -target "${ARCH}-apple-macos13.0" -o "$ROOT/build/FixClipboard-$ARCH" -framework AppKit -framework Network -framework CoreWLAN -framework IOBluetooth -framework CoreBluetooth -framework Security -framework ServiceManagement -module-cache-path "${TMPDIR:-/tmp}/fix_clipboard_swift_cache"
 done
 xcrun lipo -create "$ROOT/build/FixClipboard-arm64" "$ROOT/build/FixClipboard-x86_64" -output "$APP/Contents/MacOS/FixClipboard"
 python3 - "$APP" "$VERSION" "$BUILD" "$CHANNEL" <<'PY'
@@ -35,6 +35,7 @@ info = dict(CFBundleExecutable='FixClipboard', CFBundleIdentifier='local.louis.f
 with (Path(app) / 'Contents/Info.plist').open('wb') as f:
     plistlib.dump(info, f)
 PY
+cp "$ROOT/assets/WeChatQR.jpg" "$APP/Contents/Resources/WeChatQR.jpg"
 cp "$ROOT/config/Commerce.json" "$APP/Contents/Resources/Commerce.json"
 cp "$ROOT/docs/PRIVACY.md" "$APP/Contents/Resources/PRIVACY.md"
 cp "$ROOT/LICENSE" "$APP/Contents/Resources/LICENSE"

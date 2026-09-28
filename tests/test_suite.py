@@ -21,7 +21,7 @@ class SafeTests(unittest.TestCase):
     def test_commerce_and_icon_resources(self):
         resources = APP.parents[1] / 'Resources'
         config = json.loads((resources / 'Commerce.json').read_text())
-        self.assertEqual(set(config), {'storeID', 'productID', 'variantID', 'checkoutURL', 'priceLabel', 'deviceLimit', 'testMode'})
+        self.assertEqual(set(config), {'storeID', 'productID', 'variantID', 'checkoutURL', 'priceLabel', 'deviceLimit', 'testMode', 'manualPublicKey'})
         self.assertGreater(config['deviceLimit'], 0)
         self.assertIsInstance(config['testMode'], bool)
         self.assertEqual(config, json.loads((ROOT / 'config/Commerce.json').read_text()))
@@ -34,7 +34,11 @@ class SafeTests(unittest.TestCase):
         spec.loader.exec_module(module)
         config = json.loads((ROOT / 'config/Commerce.json').read_text())
         self.assertEqual(module.problems(config), [])
+        self.assertEqual(module.problems(config, production=True), [])
+        self.assertTrue(module.problems(dict(config, manualPublicKey="bad"), production=True))
+        self.assertTrue((resources := APP.parents[1] / "Resources" / "WeChatQR.jpg").exists())
         sample = dict(config, testMode=True)
+        sample.pop("manualPublicKey", None)
         self.assertTrue(module.problems(sample, production=True))
         self.assertEqual(module.problems(dict(sample, testMode=False), production=True), [])
         self.assertTrue(module.problems(dict(sample, checkoutURL='http://attacker.example/checkout/buy/x')))

@@ -88,18 +88,23 @@ struct DiagnosticsView: View {
                 }
             }
             VStack(alignment: .leading, spacing: 10) {
-                Label("可能影响连接 · VPN", systemImage: "exclamationmark.triangle.fill")
-                    .font(.system(size: 14, weight: .semibold)).foregroundStyle(.orange)
-                if model.loading { ProgressView().controlSize(.small) }
-                else { Text(status("VPN")).fontWeight(.medium) }
-                Text("VPN 不是接力功能的必要条件。若它阻止本地网络通信，可能影响通用剪贴板；已连接不代表一定有故障。")
-                Text("在 Mac 和 iPhone / iPad 的 VPN App 中，查找并开启“允许局域网访问 / Allow LAN”或“允许本地网络 / Local Network Sharing”等选项。名称因 App 而异；若没有此选项，请查看其帮助或联系管理员。")
-                Text("调整后重新复制并测试。重置共享服务不能解除 VPN 的网络限制。本机检查也可能漏掉第三方隧道、代理及其他设备上的 VPN。")
-                    .foregroundStyle(.secondary)
-                Link("Apple 官方说明：通用剪贴板与 VPN", destination: URL(string: "https://support.apple.com/zh-cn/guide/iphone/iph220ea8dca/ios")!)
+                let vpn = status("VPN")
+                let connected = vpn == "已连接"
+                let clear = vpn == "未发现系统 VPN" && !model.loading
+                let tint: Color = clear ? .green : (connected && !model.loading ? .orange : .secondary)
+                Label(model.loading ? "正在检查 VPN…" : (clear ? "未检测到已连接的系统 VPN" : (connected ? "VPN 已连接 · 请检查本地网络设置" : "VPN 状态未知")),
+                      systemImage: clear ? "checkmark.circle.fill" : (connected ? "exclamationmark.triangle.fill" : "questionmark.circle"))
+                    .font(.system(size: 14, weight: .semibold)).foregroundStyle(tint)
+                if connected && !model.loading {
+                    Text("请检查 VPN 的 Local Network Sharing（本地网络共享）是否开启。若 VPN 阻止本地通信，可能影响通用剪贴板。")
+                    Text("在 Mac 和 iPhone / iPad 的 VPN App 中，开启“允许局域网访问 / Allow LAN”或“Local Network Sharing”等选项。名称因 App 而异；找不到时请查看其帮助或联系管理员。")
+                    Text("调整后重新复制并测试。已连接不代表一定有故障，修复按钮也不能解除 VPN 的网络限制。")
+                        .foregroundStyle(.secondary)
+                    Link("Apple 官方说明：通用剪贴板与 VPN", destination: URL(string: "https://support.apple.com/zh-cn/guide/iphone/iph220ea8dca/ios")!)
+                }
             }.font(.system(size: 12)).fixedSize(horizontal: false, vertical: true)
                 .padding(16).frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 14))
+                .background((model.loading ? Color.secondary : (status("VPN") == "未发现系统 VPN" ? Color.green : (status("VPN") == "已连接" ? Color.orange : Color.secondary))).opacity(0.08), in: RoundedRectangle(cornerRadius: 14))
             if !model.summary.isEmpty && !model.summary.contains("Wi-Fi") {
                 Text(model.summary).font(.system(size: 12)).foregroundStyle(.orange)
             }

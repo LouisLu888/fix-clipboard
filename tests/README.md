@@ -48,7 +48,7 @@ Diagnostics regression cases are included in --self-test: missing/partial Handof
 这是按需联网集成测试，不加入默认 CI。使用测试配置，Key 从标准输入传入（不要把 Key 放进命令行参数或提交仓库）：
 
 ```sh
-xcrun swiftc source/Licensing.swift tests/LiveLicenseTest.swift -o build/LiveLicenseTest -framework Security
+xcrun swiftc source/Licensing.swift source/ManualLicense.swift tests/LiveLicenseTest.swift -o build/LiveLicenseTest -framework Security
 build/LiveLicenseTest config/Commerce.json
 ```
 
@@ -58,3 +58,7 @@ build/LiveLicenseTest config/Commerce.json
 ### v1.5.0-rc.1 发布加固
 
 10 项默认回归测试通过，含 36 条授权断言。新增命令超时/大输出/启动失败测试、发布配置拒绝测试，以及停用后钥匙串删除失败的重载验证。实际 SwiftUI 视图使用 fixtures 生成静态深浅色预览；ImageRenderer 无法绘制部分 AppKit 控件，因此预览不代表 GUI 交互验收。原生 GUI 工具仍然连接超时。DMG 另行校验镜像、安装内容和签名。
+
+## 微信离线授权
+
+`python3 tests/test_manual_issuer.py` 用临时密钥测试真实发码工具与 App 验签、重复发码、每单三台上限、50 份优惠上限及私钥权限。`--license-self-test` 现有 45 条断言，覆盖离线激活、保存失败、错误机器/产品/签名、重载、长期有效和停用；不读写真实私钥或账本。

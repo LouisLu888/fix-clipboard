@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Validate public commerce configuration before building; never reads credentials."""
 import argparse
+import base64
 import json
 from pathlib import Path
 from urllib.parse import urlparse
@@ -13,7 +14,14 @@ def problems(config, production=False):
             errors.append(f'{key} must be a positive integer')
     if type(config.get('testMode')) is not bool:
         errors.append('testMode must be explicitly true or false')
-    if production and config.get('testMode') is not False:
+    manual = config.get('manualPublicKey')
+    if manual is not None:
+        try:
+            if len(base64.b64decode(manual, validate=True)) != 32:
+                errors.append('Manual public key must be 32 bytes')
+        except Exception:
+            errors.append('Invalid manual public key')
+    if production and not manual and config.get('testMode') is not False:
         errors.append('Production release blocked: Lemon Squeezy is still configured for TEST mode')
     url = urlparse(config.get('checkoutURL', ''))
     if (url.scheme != 'https' or not (url.hostname or '').endswith('.lemonsqueezy.com')

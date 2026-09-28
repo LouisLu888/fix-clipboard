@@ -10,9 +10,11 @@ struct CommerceConfig: Codable, Equatable {
     let priceLabel: String
     let deviceLimit: Int
     var testMode: Bool = false
+    var manualPublicKey: String? = nil
+    var manualSales: Bool { manualPublicKey != nil }
     var configured: Bool { storeID > 0 && productID > 0 && variantID > 0 }
     var checkout: URL? {
-        guard configured, let url = URL(string: checkoutURL), url.scheme == "https",
+        guard !manualSales, configured, let url = URL(string: checkoutURL), url.scheme == "https",
               let host = url.host, host.hasSuffix(".lemonsqueezy.com"), url.user == nil, url.password == nil else { return nil }
         return url
     }
@@ -139,6 +141,9 @@ struct SavedLicense: Codable {
     var validatedAt: Date
     var revoked: Bool = false
     func grantsPro(config: CommerceConfig, now: Date) -> Bool {
+        if let publicKey = config.manualPublicKey {
+            return !revoked && ManualLicense.verify(key, publicKey: publicKey, installation: instanceID)
+        }
         let age = now.timeIntervalSince(validatedAt)
         return !revoked && config.configured && storeID == config.storeID && productID == config.productID && variantID == config.variantID && !instanceID.isEmpty && age >= -300 && age <= 7 * 86400
     }
@@ -155,7 +160,10 @@ final class LicenseStore: ObservableObject {
     @Published private(set) var busy = false
     @Published private(set) var message = "手动修复和基础诊断永久免费。"
     @Published private(set) var hasLicense = false
-    var permitsAutomaticRepair: Bool { saved?.grantsPro(config: config, now: now()) == true }
+    @Published private(set) var installationCode = ""
+    var permitsAutomaticRepair: Bool {
+        saved?.grantsPro(config: config, now: now()) == true && (!config.manualSales || saved?.instanceID == installationCode)
+    }
     var onChange: (() -> Void)?
     init(config: CommerceConfig = .load(), api: LicenseAPI = LemonLicenseAPI(), vault: LicenseVault = KeychainVault(), now: @escaping () -> Date = Date.init) {
         self.config = config; self.api = api; self.vault = vault; self.now = now
@@ -163,12 +171,13 @@ final class LicenseStore: ObservableObject {
     func load() {
         saved = nil
         do {
+            if config.manualSales { installationCode = try installID() }
             if let data = try vault.read("license") { saved = try JSONDecoder().decode(SavedLicense.self, from: data) }
             updateAccess()
         } catch { updateAccess(); message = LicenseFailure.storage.localizedDescription }
     }
     func updateAccess() {
-        isPro = saved?.grantsPro(config: config, now: now()) == true
+        isPro = permitsAutomaticRepair
         hasLicense = saved != nil
         onChange?()
     }
@@ -187,11 +196,20 @@ final class LicenseStore: ObservableObject {
         guard !busy else { return }
         guard config.configured else { message = LicenseFailure.unconfigured.localizedDescription; return }
         let key = input.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !key.isEmpty, key.count <= 256 else { message = "请输入购买邮件中的 License Key。"; return }
+        guard !key.isEmpty, key.count <= 2048 else { message = "请输入卖家发来的完整授权码。"; return }
         if saved != nil { message = "此 Mac 已保存授权。请先重新验证，或停用当前授权后再输入新 Key。"; return }
         busy = true; defer { busy = false }
         do {
             let id = try installID()
+            if let publicKey = config.manualPublicKey {
+                installationCode = id
+                guard ManualLicense.verify(key, publicKey: publicKey, installation: id) else {
+                    message = "授权码无效或不属于此 Mac。请将本机激活码发给卖家核对。"; return
+                }
+                try persist(SavedLicense(key: key, instanceID: id, storeID: config.storeID, productID: config.productID, variantID: config.variantID, validatedAt: now()))
+                message = "Pro 已激活，买断授权无需联网验证。现在可以开启自动修复。"
+                return
+            }
             // Preflight rejects keys for another product before consuming an activation slot.
             let check = try await api.request("validate", fields: ["license_key": key])
             guard check.valid == true else { throw LicenseFailure.rejected }
@@ -208,12 +226,16 @@ final class LicenseStore: ObservableObject {
             }
             message = "Pro 已激活。现在可以在菜单中开启自动修复。"
         } catch {
-            message = error.localizedDescription + " 如激活时网络中断，请先在商店确认名额，避免重复激活。"
+            message = error.localizedDescription + (config.manualSales ? " 请重试或联系卖家。" : " 如激活时网络中断，请先在商店确认名额，避免重复激活。")
         }
     }
     @MainActor func validate() async {
         guard !busy else { return }
         updateAccess()
+        if config.manualSales {
+            message = isPro ? "Pro 买断授权有效，无需联网验证。" : "请粘贴卖家发来的此 Mac 授权码。"
+            return
+        }
         guard config.configured, var record = saved else { return }
         busy = true; defer { busy = false }
         do {
@@ -244,6 +266,12 @@ final class LicenseStore: ObservableObject {
         guard !busy, let record = saved else { return }
         busy = true; defer { busy = false }
         do {
+            if config.manualSales {
+                try vault.write(nil, account: "license")
+                saved = nil; updateAccess()
+                message = "本机授权已移除。换机请联系卖家；离线授权无法远程释放或撤销。"
+                return
+            }
             let result = try await api.request("deactivate", fields: ["license_key": record.key, "instance_id": record.instanceID])
             guard result.deactivated == true else { throw LicenseFailure.rejected }
             var inactive = record

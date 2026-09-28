@@ -2,7 +2,7 @@
 
 ## 当前候选版
 
-`v1.5.0-rc.3`。界面、稳定性和安装包已整理；仍使用 Lemon Squeezy 测试模式，不作为正式收费版发布。
+`v1.5.0-rc.4`。界面、稳定性和安装包已整理；已切换微信人工收款和离线签名授权，仍以候选版发布；Lemon Squeezy 暂未开放。
 
 ```sh
 bash source/build.sh --candidate
@@ -12,7 +12,14 @@ bash scripts/package_dmg.sh
 
 输出双架构 ZIP、可拖到 Applications 的 DMG 和 SHA256SUMS.txt。DMG 附安装/隐私说明。构建默认 ad-hoc 签名，没有 Apple 公证；不会要求付费开发者账户，也不会关闭系统安全保护。
 
-## 正式发售前必须完成
+## 微信候选版验收
+
+- 扫描包内二维码，确认能添加正确微信联系人。
+- 使用临时测试密钥验收签发、错误机器/签名拒绝、激活、重载、离线持续有效和本机停用。
+- 备份仓库外私钥与订单账本。优惠名额由卖家按实际收款确认。
+- 原生窗口、登录项及跨设备恢复仍需实机检查。
+
+## 将来恢复 Lemon Squeezy 前必须完成
 
 1. 商店审核与 Live 商品：复制/创建正式商品后重新取得 Store/Product/Variant 和 checkout，确认价格、License 生成、3 台上限、无到期、退款处理与购买邮件。测试商品不会因修改 App 的 testMode 自动变成正式商品。
 2. 验证实际 Live checkout 后，更新 Commerce.json，设 `testMode: false`。`bash source/build.sh --release` 会拒绝测试配置、缺失 ID 和非公开 HTTPS 支付地址；构建检查不能代替实际网页/订单验收。

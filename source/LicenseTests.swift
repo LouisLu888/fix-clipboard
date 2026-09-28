@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 
 private final class MemoryVault: LicenseVault {
     var values: [String: Data] = [:]
@@ -131,5 +132,40 @@ private final class MockLicenseAPI: LicenseAPI {
     vault.failDeletion = false
     store.forgetInvalidLicense()
     check(!store.hasLicense && vault.values["license"] == nil, "Explicit cleanup after failed deletion")
+    let signing = Curve25519.Signing.PrivateKey()
+    var manualConfig = config
+    manualConfig.manualPublicKey = signing.publicKey.rawRepresentation.base64EncodedString()
+    let manualVault = MemoryVault(); let manualAPI = MockLicenseAPI()
+    let manual = LicenseStore(config: manualConfig, api: manualAPI, vault: manualVault, now: { clock })
+    manual.load()
+    func signed(_ installation: String, product: String = "fix-clipboard-pro-v1") -> String {
+        let payload = ManualLicensePayload(version: 1, product: product, order: "fixture", installation: installation)
+        let data = try! JSONEncoder().encode(payload)
+        return "FC1." + data.base64EncodedString() + "." + (try! signing.signature(for: data)).base64EncodedString()
+    }
+    await manual.activate(signed(UUID().uuidString))
+    check(!manual.isPro && manualAPI.calls.isEmpty, "Wrong installation rejected offline")
+    await manual.activate(signed(manual.installationCode, product: "other"))
+    check(!manual.isPro, "Other product rejected offline")
+    let token = signed(manual.installationCode)
+    check(!ManualLicense.verify(token + "x", publicKey: manualConfig.manualPublicKey!, installation: manual.installationCode), "Tampered signature rejected")
+    manualVault.failLicenseWrite = true
+    await manual.activate(token)
+    check(!manual.isPro, "Failed offline persistence cannot unlock")
+    manualVault.failLicenseWrite = false
+    await manual.activate(token)
+    check(manual.isPro && manual.permitsAutomaticRepair && manualAPI.calls.isEmpty, "Offline activation unlocks without API")
+    clock = time.addingTimeInterval(365 * 86400)
+    await manual.validate()
+    check(manual.isPro, "Lifetime offline license has no seven day expiry")
+    let offlineReload = LicenseStore(config: manualConfig, api: manualAPI, vault: manualVault)
+    offlineReload.load()
+    check(offlineReload.isPro, "Signed license survives reload")
+    manualVault.failDeletion = true
+    await manual.deactivate()
+    check(manual.isPro, "Failed offline deletion preserves existing license")
+    manualVault.failDeletion = false
+    await manual.deactivate()
+    check(!manual.isPro && !manual.hasLicense && manualAPI.calls.isEmpty, "Offline deactivation clears local record without API")
     print("PASS: \(count) license regression assertions; fake API and memory vault only. No payment, Keychain access or activation performed.")
 }

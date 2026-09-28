@@ -3,7 +3,8 @@
   "productID": 1392205,
   "variantID": 2174236,
   "checkoutURL": "https://panda.lemonsqueezy.com/checkout/buy/428fbb52-8630-4b87-b769-92a6f899bcb1",
-  "priceLabel": "$9.99 · 以付款页为准",
+  "priceLabel": "前 50 名 ¥29 · 正常价 ¥49 买断",
   "deviceLimit": 3,
-  "testMode": true
+  "testMode": true,
+  "manualPublicKey": "MjoLXQtJUNbJzjCHdFyrcPVYZBjWdnqypLZt4J+DOf0="
 }
