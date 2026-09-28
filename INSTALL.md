@@ -1,10 +1,10 @@
 # 安装 Fix Clipboard
 
-本文对应 `v1.5.0-rc.2` 候选版。商店仍为 Test mode，不能正式购买；手动修复和诊断可试用。
+本文对应 `v1.5.0-rc.3` 候选版。商店仍为 Test mode，不能正式购买；手动修复和诊断可试用。
 
 ## 推荐：DMG 安装
 
-1. 下载 `Fix-Clipboard-1.5.0-rc.2-universal.dmg`，双击打开。
+1. 下载 `Fix-Clipboard-1.5.0-rc.3-universal.dmg`，双击打开。
 2. 将 `Fix Clipboard.app` 拖到旁边的 `Applications` 文件夹。
 3. 从「应用程序」打开 App，再推出安装磁盘。
 4. 首次显示主面板。关闭窗口后 App 留在菜单栏，可再次选择「打开主面板…」。

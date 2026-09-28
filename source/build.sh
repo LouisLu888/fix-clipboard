@@ -3,15 +3,15 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 MODE="${1:---candidate}"
 VERSION="1.5.0"
-BUILD="12"
+BUILD="13"
 if [[ "$MODE" == "--release" ]]; then
   python3 "$ROOT/scripts/release_check.py" --production
   PACKAGE_VERSION="$VERSION"
   CHANNEL="release"
 elif [[ "$MODE" == "--candidate" ]]; then
   python3 "$ROOT/scripts/release_check.py"
-  PACKAGE_VERSION="$VERSION-rc.2"
-  CHANNEL="rc.2"
+  PACKAGE_VERSION="$VERSION-rc.3"
+  CHANNEL="rc.3"
 else
   echo "Usage: bash source/build.sh [--candidate|--release]" >&2
   exit 2

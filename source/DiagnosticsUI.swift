@@ -79,9 +79,9 @@ struct DiagnosticsView: View {
                 }
             }
             .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 16))
-            if model.authorization != .allowedAlways {
+            if !model.loading && model.summary.contains("未授权") && model.authorization != .allowedAlways {
                 HStack(alignment: .center, spacing: 16) {
-                    Text("允许读取蓝牙状态，即可检查开关。\n不扫描附近设备，也不影响一键修复。")
+                    Text("系统报告暂时无法读取蓝牙开关，可授权备用检查。\n不扫描附近设备，也不影响一键修复。")
                         .font(.system(size: 12)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                     Spacer()
                     Button(model.authorization == .notDetermined ? "授权蓝牙" : "打开权限设置") { model.authorize() }

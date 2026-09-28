@@ -69,14 +69,29 @@ func vpnStatus(_ result: CommandResult) -> String {
     return "未发现已连接项（不排除其他 VPN／代理）"
 }
 
+// system_profiler reports the local controller without initializing our Bluetooth manager.
+// Its schema is not guaranteed across macOS versions: unknown values must stay unknown.
+func reportedBluetoothPower(_ result: CommandResult) -> UInt32? {
+    guard result.status == 0, let data = result.output.data(using: .utf8),
+          let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+          let entries = root["SPBluetoothDataType"] as? [[String: Any]] else { return nil }
+    let states = entries.compactMap { ($0["controller_properties"] as? [String: Any])?["controller_state"] as? String }
+    guard states.count == 1 else { return nil }
+    switch states[0] {
+    case "attrib_on": return 1
+    case "attrib_off": return 0
+    default: return nil
+    }
+}
+
 // Never initialize the controller until permission is granted: initialization can invoke TCC.
 func bluetoothStatus(authorization: CBManagerAuthorization, power: () -> UInt32?) -> String {
     guard authorization == .allowedAlways else {
         return "? 未授权，电源状态未知；请在系统设置确认蓝牙开关"
     }
     switch power() {
-    case 1: return "✓ 电源开启"
-    case 0: return "✗ 电源关闭"
+    case 1: return "✓ 开启"
+    case 0: return "✗ 关闭"
     default: return "? 未初始化或无法读取"
     }
 }
@@ -84,10 +99,15 @@ func bluetoothStatus(authorization: CBManagerAuthorization, power: () -> UInt32?
 func diagnosticSummary() -> String {
     let wifi: String
     if let interface = CWWiFiClient.shared().interface() {
-        wifi = interface.powerOn() ? "✓ 电源开启" : "? 已关闭或读取失败"
+        wifi = interface.powerOn() ? "✓ 开启" : "? 已关闭或读取失败"
     } else { wifi = "? 无法读取" }
-    let bluetooth = bluetoothStatus(authorization: CBManager.authorization) {
-        IOBluetoothHostController.default()?.powerState.rawValue
+    let reported = reportedBluetoothPower(runBoundedCommand("/usr/sbin/system_profiler", ["SPBluetoothDataType", "-json"], timeout: 3))
+    let bluetooth: String
+    if let reported { bluetooth = reported == 1 ? "✓ 开启" : "✗ 关闭" }
+    else {
+        bluetooth = bluetoothStatus(authorization: CBManager.authorization) {
+            IOBluetoothHostController.default()?.powerState.rawValue
+        }
     }
     func preference(_ key: String) -> Bool? {
         let value = CFPreferencesCopyValue(key as CFString, "com.apple.coreservices.useractivityd" as CFString,
@@ -143,7 +163,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        statusItem.button?.image = NSImage(systemSymbolName: "clipboard", accessibilityDescription: "Fix Clipboard")
+        if let iconURL = Bundle.main.url(forResource: "AppIcon", withExtension: "icns"),
+           let icon = NSImage(contentsOf: iconURL) {
+            icon.size = NSSize(width: 20, height: 20)
+            icon.isTemplate = false
+            statusItem.button?.image = icon
+        } else {
+            statusItem.button?.image = NSImage(systemSymbolName: "clipboard", accessibilityDescription: "Fix Clipboard")
+        }
+        statusItem.button?.setAccessibilityLabel("Fix Clipboard")
         statusItem.button?.toolTip = "Fix Clipboard · 修复跨设备复制粘贴"
         preferences.removeObject(forKey: "autoEnabled")
         preferences.removeObject(forKey: "nextRun")
@@ -453,6 +481,13 @@ if CommandLine.arguments.contains("--process-self-test") {
     for authorization in [CBManagerAuthorization.notDetermined, .denied, .restricted] {
         assert(bluetoothStatus(authorization: authorization, power: { fatalError("Unauthorized hardware access") }).contains("未授权"))
     }
+    for (state, expected) in [("attrib_on", UInt32(1)), ("attrib_off", UInt32(0))] {
+        let json = "{\"SPBluetoothDataType\":[{\"controller_properties\":{\"controller_state\":\"\(state)\"}}]}"
+        assert(reportedBluetoothPower(CommandResult(status: 0, output: json)) == expected)
+    }
+    assert(reportedBluetoothPower(CommandResult(status: 0, output: "{}")) == nil)
+    assert(reportedBluetoothPower(CommandResult(status: -2, output: "timeout")) == nil)
+    assert(reportedBluetoothPower(CommandResult(status: 0, output: "invalid JSON")) == nil)
     assert(bluetoothStatus(authorization: .allowedAlways, power: { 1 }).contains("开启"))
     assert(bluetoothStatus(authorization: .allowedAlways, power: { 0 }).contains("关闭"))
     assert(bluetoothStatus(authorization: .allowedAlways, power: { nil }).contains("无法读取"))

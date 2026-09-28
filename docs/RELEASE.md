@@ -2,7 +2,7 @@
 
 ## 当前候选版
 
-`v1.5.0-rc.1`。界面、稳定性和安装包已整理；仍使用 Lemon Squeezy 测试模式，不作为正式收费版发布。
+`v1.5.0-rc.3`。界面、稳定性和安装包已整理；仍使用 Lemon Squeezy 测试模式，不作为正式收费版发布。
 
 ```sh
 bash source/build.sh --candidate
