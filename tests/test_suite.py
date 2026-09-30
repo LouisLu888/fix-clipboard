@@ -18,33 +18,17 @@ def stopped(pid):
     return 'T' in run('/bin/ps', '-p', str(pid), '-o', 'stat=', check=False).stdout
 
 class SafeTests(unittest.TestCase):
-    def test_commerce_and_icon_resources(self):
+    def test_free_bundle_resources(self):
         resources = APP.parents[1] / 'Resources'
-        config = json.loads((resources / 'Commerce.json').read_text())
-        self.assertEqual(set(config), {'storeID', 'productID', 'variantID', 'checkoutURL', 'priceLabel', 'deviceLimit', 'testMode', 'manualPublicKey'})
-        self.assertGreater(config['deviceLimit'], 0)
-        self.assertIsInstance(config['testMode'], bool)
-        self.assertEqual(config, json.loads((ROOT / 'config/Commerce.json').read_text()))
         self.assertGreater((resources / 'AppIcon.icns').stat().st_size, 0)
+        self.assertGreater((resources / 'WeChatOfficial.jpg').stat().st_size, 0)
+        self.assertFalse((resources / 'Commerce.json').exists())
+        self.assertFalse((resources / 'WeChatQR.jpg').exists())
+        binary = APP.read_bytes()
+        for removed in [b'api.lemonsqueezy.com', b'LicenseStore', b'ManualLicense', b'ProView']:
+            self.assertNotIn(removed, binary)
     def test_bounded_subprocess(self):
         self.assertIn('PASS: bounded subprocess', run(str(APP), '--process-self-test').stdout)
-    def test_release_configuration_guards(self):
-        spec = importlib.util.spec_from_file_location('release_check', ROOT / 'scripts/release_check.py')
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-        config = json.loads((ROOT / 'config/Commerce.json').read_text())
-        self.assertEqual(module.problems(config), [])
-        self.assertEqual(module.problems(config, production=True), [])
-        self.assertTrue(module.problems(dict(config, manualPublicKey="bad"), production=True))
-        self.assertTrue((resources := APP.parents[1] / "Resources" / "WeChatQR.jpg").exists())
-        sample = dict(config, testMode=True)
-        sample.pop("manualPublicKey", None)
-        self.assertTrue(module.problems(sample, production=True))
-        self.assertEqual(module.problems(dict(sample, testMode=False), production=True), [])
-        self.assertTrue(module.problems(dict(sample, checkoutURL='http://attacker.example/checkout/buy/x')))
-        self.assertTrue(module.problems(dict(sample, storeID=True)))
-    def test_license_flows(self):
-        self.assertIn("license regression assertions", run(str(APP), "--license-self-test").stdout)
     def test_repair_and_schedule(self):
         self.assertIn('PASS:', run(str(APP), '--self-test').stdout)
     def test_real_network_callback(self):

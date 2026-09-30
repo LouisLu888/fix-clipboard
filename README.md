@@ -1,33 +1,31 @@
 # Fix Clipboard · Mac / iPhone 通用剪贴板修复
 
-菜单栏小工具：免费手动重置 Mac 共享服务，Pro 在网络变化和 Mac 唤醒后自动尝试修复。不读取剪贴板内容。
+**全部功能免费、开源。无需注册、付费、授权码或关注验证。**
 
-## 下载安装
+[产品首页与下载](https://www.jiabinlu.com/products/fix-clipboard/) · [完整安装手册](https://www.jiabinlu.com/products/fix-clipboard/guide.html)
 
-[下载 v1.5.0-rc.4 候选版](https://github.com/LouisLu888/fix-clipboard/releases/tag/v1.5.0-rc.4)。支持 Apple Silicon / Intel，最低 macOS 13。拖入 Applications 后启动。当前为 ad-hoc 签名，未公证；首次打开按 [安装说明](INSTALL.md) 操作。
+- 手动一键重置 Mac 共享服务。
+- 免费自动修复：可检测到的网络路径变化、Mac 睡眠唤醒后自动尝试重置。
+- Wi-Fi / Bluetooth / Handoff / VPN 本机诊断。
+- 免费登录时启动，首次确认后开启。
 
-## Free 与 Pro
+自动修复默认关闭，请主动开启。它会等待网络可用、稳定 3 秒，并满足 10 秒冷却。网络变化不代表故障，工具不能保证修复所有原因。VPN 阻止本地通信时仍需允许 Local Network Sharing / Allow LAN。合盖未实际睡眠时，开盖不保证触发。
 
-| 功能 | Free | Pro |
-| --- | --- | --- |
-| 手动修复、基础诊断 | ✓ | ✓ |
-| 登录时启动（首次确认后开启） | ✓ | ✓ |
-| 网络变化后自动修复 | — | ✓ |
-| Mac 唤醒后自动修复 | — | ✓ |
+支持 macOS 13+，包含 Apple Silicon / Intel 架构。当前免费候选版 `v1.6.0-rc.1`，未经过 Apple 公证。安装到 Applications 后首次尝试打开，如系统提示无法验证开发者，核对来源后前往 **系统设置 → 隐私与安全性 → 仍要打开**。详见 [Apple 官方说明](https://support.apple.com/zh-cn/102445)。不用关闭 Gatekeeper 或 SIP。
 
-Pro 正常价 **¥49 买断**，前 50 名 **¥29**。个人最多 3 台 Mac，长期使用 V1.x，含 V1.x 更新。App 内扫码添加微信，确认优惠名额后转账，把本机激活码发给卖家，获得授权码后粘贴激活。Lemon Squeezy 尚未开放正式购买，当前使用微信与离线签名授权。[购买与发码说明](docs/WECHAT_SALES.md)
+## 为什么做这个工具
 
-如果手动修复对你有帮助，Pro 可以减少网络切换、开盖唤醒后反复打开工具的操作。自动选项默认关闭，激活后由用户开启。
+我在小红书分享 Mac / iPhone 复制粘贴失效的问题后，发现不少人也有同样困扰，于是把重置步骤做成了一个按钮。现在自动修复也免费开放，希望大家少花时间处理这些小故障。
 
-## 能检测什么
+如果它对你有帮助，欢迎自愿关注：[小红书原帖（点击作者头像关注）](https://xhslink.cn/o/9uYJj82pMFu) · [公众号二维码](https://www.jiabinlu.com/products/fix-clipboard/#follow)。继续分享实用工具，以及 AI、产品和自动化的实际做法。关注不是使用条件。
 
-Wi-Fi、Bluetooth 和 Handoff 显示本机状态；绿色不代表跨设备连接已恢复。蓝牙优先读取系统报告，报告不可用时提供授权备用检查。VPN 未检测到连接显示绿色，检测到连接显示橙色及局域网共享设置建议，读取失败显示未知。检测可能遗漏第三方代理和其他设备上的 VPN。
+## 升级与隐私
 
-[Apple 官方通用剪贴板说明](https://support.apple.com/zh-cn/guide/iphone/iph220ea8dca/ios)：VPN 配置不能阻止局域网通信。工具无法解除 VPN 的网络限制，也不能确认 useractivityd 内部是否卡住。
+从 1.5 升级后自动获得全部功能，无需旧授权。保留已有自动修复与登录启动设置，不访问或删除旧授权钥匙串。未开启自动修复的用户仍需自己开启。
 
-网络变化/唤醒后，等待网络可用、稳定 3 秒并满足 10 秒冷却后重置当前用户共享服务。合盖必须实际进入睡眠才会触发唤醒修复。没有每 4 小时定时任务。执行成功仅代表命令完成，请在另一设备重新复制并双向测试。
+不读取剪贴板内容，不上传诊断信息，没有遥测。[隐私说明](docs/PRIVACY.md)。旧购买方案已停止使用；有旧订单问题可通过原购买渠道联系作者。
 
-## 开发与验证
+## 构建与验证
 
 ```sh
 bash source/build.sh
@@ -35,4 +33,4 @@ python3 tests/test_suite.py
 bash scripts/package_dmg.sh
 ```
 
-[测试说明](tests/README.md) · [隐私说明](docs/PRIVACY.md) · [发布验收](docs/RELEASE.md)。源码 MIT。
+[测试说明](tests/README.md) · [安装说明](INSTALL.md) · [发布验收](docs/RELEASE.md)。源码 MIT。

@@ -10,11 +10,10 @@ final class HomeModel: ObservableObject {
     @Published var lastRun = "尚未执行修复"
     @Published var result: String?
     @Published var failed = false
-    @Published var offerPro = false
 }
 
 enum AppLinks {
-    static let releases = URL(string: "https://github.com/LouisLu888/fix-clipboard/releases/latest")!
+    static let releases = URL(string: "https://www.jiabinlu.com/products/fix-clipboard/#download")!
     static let support = URL(string: "https://github.com/LouisLu888/fix-clipboard/issues/new/choose")!
     static let privacy = URL(string: "https://github.com/LouisLu888/fix-clipboard/blob/main/docs/PRIVACY.md")!
     static var version: String {
@@ -27,12 +26,11 @@ enum AppLinks {
 
 struct HomeView: View {
     @ObservedObject var model: HomeModel
-    @ObservedObject var license: LicenseStore
     var repair: () -> Void
     var diagnostics: () -> Void
     var toggleAuto: () -> Void
     var toggleLogin: () -> Void
-    var showPro: () -> Void
+    var showFollow: () -> Void
     @Environment(\.colorScheme) private var scheme
     var version: String = AppLinks.version
     private let buttonColor = Color(red: 0.08, green: 0.46, blue: 0.35)
@@ -48,7 +46,7 @@ struct HomeView: View {
                     VStack(alignment: .leading, spacing: 5) {
                         HStack {
                             Text("Fix Clipboard").font(.system(size: 25, weight: .bold, design: .rounded))
-                            Text(license.isPro ? "PRO" : "FREE").font(.system(size: 10, weight: .bold)).padding(.horizontal, 7).padding(.vertical, 4)
+                            Text("全部免费").font(.system(size: 10, weight: .bold)).padding(.horizontal, 7).padding(.vertical, 4)
                                 .background(accent.opacity(0.12), in: Capsule()).foregroundStyle(accent)
                         }
                         Text("让 Mac 与 iPhone，再次接上话。")
@@ -85,17 +83,18 @@ struct HomeView: View {
                     HStack {
                         Text("自动修复").font(.system(size: 15, weight: .semibold))
                         Spacer()
-                        if !license.isPro { Label("Pro", systemImage: "lock.fill").font(.caption).foregroundStyle(.secondary) }
+                        Text("免费").font(.caption).foregroundStyle(.secondary)
                     }
                     setting("网络变化与 Mac 唤醒", detail: "包含可检测到的 VPN / Wi-Fi 变化及开盖唤醒", enabled: model.autoEnabled, action: toggleAuto)
                 }
                 Divider()
-                setting("登录时启动 · 免费", detail: model.loginNeedsApproval ? "需要在系统设置中允许登录项" : "登录 Mac 后，在菜单栏保持就绪", enabled: model.loginEnabled, requiresPro: false, action: toggleLogin)
-                HStack {
-                    Button(license.isPro ? "管理 Pro 授权" : (model.offerPro ? "下次自动处理 · 了解 Pro" : "了解 Pro / 激活 License"), action: showPro)
-                    Spacer()
-                    if license.config.manualSales { Text("微信购买 · 买断授权").font(.caption).foregroundStyle(.secondary) }
-                    else if license.config.testMode { Text("测试版 · 非正式购买").font(.caption).foregroundStyle(.orange) }
+                setting("登录时启动 · 免费", detail: model.loginNeedsApproval ? "需要在系统设置中允许登录项" : "登录 Mac 后，在菜单栏保持就绪", enabled: model.loginEnabled, action: toggleLogin)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("喜欢这个工具？也可以关注作者。")
+                        .font(.system(size: 13, weight: .medium))
+                    Text("继续分享实用工具，以及 AI、产品和自动化的实际做法。关注完全自愿，不影响任何功能。")
+                        .font(.system(size: 11)).foregroundStyle(.secondary)
+                    Button("小红书 / 公众号", action: showFollow)
                 }
                 Divider()
                 HStack(spacing: 16) {
@@ -109,19 +108,14 @@ struct HomeView: View {
                     .font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }.padding(28).frame(width: 560).background(Color(nsColor: .windowBackgroundColor))
     }
-    private func setting(_ title: String, detail: String, enabled: Bool, requiresPro: Bool = true, action: @escaping () -> Void) -> some View {
+    private func setting(_ title: String, detail: String, enabled: Bool, action: @escaping () -> Void) -> some View {
         HStack(spacing: 14) {
             VStack(alignment: .leading, spacing: 4) {
                 Text(title).font(.system(size: 13, weight: .medium))
                 Text(detail).font(.system(size: 11)).foregroundStyle(.secondary)
             }
             Spacer()
-            if !requiresPro || license.isPro || enabled {
-                Toggle(title, isOn: Binding(get: { enabled }, set: { _ in action() })).labelsHidden().toggleStyle(.switch).controlSize(.small)
-            } else {
-                Button(action: action) { Image(systemName: "lock.fill").frame(width: 28) }.help("了解 Pro 自动修复")
-                    .accessibilityLabel("解锁" + title)
-            }
+            Toggle(title, isOn: Binding(get: { enabled }, set: { _ in action() })).labelsHidden().toggleStyle(.switch).controlSize(.small)
         }
     }
 }

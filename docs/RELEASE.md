@@ -1,36 +1,11 @@
-# 发布候选版与正式版
+# 免费版发布验收
 
-## 当前候选版
+当前：`v1.6.0-rc.1`，全部功能免费，无购买或授权逻辑。使用 `bash source/build.sh`、`python3 tests/test_suite.py`、`bash scripts/package_dmg.sh` 生成并验证双架构候选包。
 
-`v1.5.0-rc.4`。界面、稳定性和安装包已整理；已切换微信人工收款和离线签名授权，仍以候选版发布；Lemon Squeezy 暂未开放。
+构建从空 App bundle 开始，避免旧 Commerce.json 或购买二维码残留。集成测试检查公众号二维码、图标和二进制中不含旧授权模块及支付 API 地址。
 
-```sh
-bash source/build.sh --candidate
-python3 tests/test_suite.py
-bash scripts/package_dmg.sh
-```
+发布前核对：新用户不需授权即可开启自动修复；旧用户开关保留且不读写旧钥匙串；网络去抖和冷却、睡眠/唤醒、手动修复、诊断、登录项；关注入口自愿且不控制任何功能；二维码来自官网公众号入口。
 
-输出双架构 ZIP、可拖到 Applications 的 DMG 和 SHA256SUMS.txt。DMG 附安装/隐私说明。构建默认 ad-hoc 签名，没有 Apple 公证；不会要求付费开发者账户，也不会关闭系统安全保护。
+自动化测试不能替代旧 macOS、Intel、新安装登录项和跨设备效果的人工验收。候选版保持 prerelease，完成验收后再发布正式版。默认 ad-hoc 签名、未公证；可配置 SIGNING_IDENTITY，但不自动完成公证。
 
-## 微信候选版验收
-
-- 扫描包内二维码，确认能添加正确微信联系人。
-- 使用临时测试密钥验收签发、错误机器/签名拒绝、激活、重载、离线持续有效和本机停用。
-- 备份仓库外私钥与订单账本。优惠名额由卖家按实际收款确认。
-- 原生窗口、登录项及跨设备恢复仍需实机检查。
-
-## 将来恢复 Lemon Squeezy 前必须完成
-
-1. 商店审核与 Live 商品：复制/创建正式商品后重新取得 Store/Product/Variant 和 checkout，确认价格、License 生成、3 台上限、无到期、退款处理与购买邮件。测试商品不会因修改 App 的 testMode 自动变成正式商品。
-2. 验证实际 Live checkout 后，更新 Commerce.json，设 `testMode: false`。`bash source/build.sh --release` 会拒绝测试配置、缺失 ID 和非公开 HTTPS 支付地址；构建检查不能代替实际网页/订单验收。
-3. 实机验收：全新安装和从旧版升级；蓝牙允许/拒绝；Free 手动修复；支付、激活、重启读取；自动修复和登录项；停用；深浅色、键盘与小屏幕显示。还需 Intel/macOS 13 等声明支持组合的实机验证，当前仅 Apple Silicon/macOS 26.6.1。
-4. 先退出旧版，再安装正式包并从 Applications 启动。当前 GUI 自动化无法连接，静态视图渲染不能替代真实窗口操作验收。
-5. 完成验收后才标记 GitHub release 为 latest。候选版保持 prerelease。
-
-## 签名与更新
-
-默认构建不需开发者年费。若以后拥有 Developer ID，可通过 `SIGNING_IDENTITY` 构建，脚本将启用 hardened runtime 和 timestamp。这只做签名，不自动公证；正式对外声称“已公证”前仍需 `notarytool` 提交并验证 ticket。不要在仓库中保存证书密码或商户 API Key。
-
-更新入口打开 GitHub 稳定版下载页面；目前不自动下载、替换或重启。用户从菜单退出旧版后替换安装，偏好设置和钥匙串授权保留。候选版的更新入口也指向稳定版，请根据版本号选择，不自动降级。
-
-源码继续 MIT。客户端付费限制不是防篡改 DRM。
+旧发码私钥和订单账本保留在卖家原来的私密目录中，当前免费版不使用。历史代码保留在 Git 历史；不再分发发码工具或要求用户联系卖家解锁。
